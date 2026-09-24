@@ -1,0 +1,23 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# Real config holds your MQTT credentials and shared secret.
+config.yaml
+*.secret
+screenshots/
+logs/
+
+# Wake-word training assets: tens of GB, fetched by hand (README, Wake words).
+models/wake/train/
+
+# Downloaded or generated at runtime, not source.
+models/piper/
+models/ack/
+models/jarvis_session.json
+artifacts/

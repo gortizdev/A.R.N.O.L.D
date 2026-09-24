@@ -1,0 +1,57 @@
+# Add to /home/parzival/homeassistant/config/configuration.yaml on the Pi,
+# then restart Home Assistant.
+#
+# This is the hop that makes the whole bridge work. Jarvis's HTTP API binds to
+# 127.0.0.1:8765 (assistant.py:460) and is unreachable from the Windows PC.
+# Home Assistant runs on the same Pi, so it CAN reach that loopback address.
+# The PC calls HA over the LAN with a token; HA relays to Jarvis.
+#
+# assistant.py:374 already references `rest_command.jarvis_say` by name, so
+# this may already exist - check before adding a duplicate key.
+
+rest_command:
+  jarvis_say:
+    url: "http://127.0.0.1:8765/say"
+    method: POST
+    content_type: "application/json"
+    payload: '{"message": {{ message | tojson }}}'
+    timeout: 10
+
+  # Used by the PC's local voice ("arnold listen"). The PC hears
+  # you and transcribes on its GPU, then posts the text here; Jarvis reasons
+  # and returns a reply, which the PC speaks through its own speakers.
+  #
+  # This needs a matching route on Jarvis - /ask does NOT exist today, only
+  # /say, /alarm and /volume. See pi/README.md for the assistant.py patch.
+  #
+  # `return_response: true` makes HA hand Jarvis's reply back to the caller
+  # rather than discarding it; the PC has nothing to speak without it.
+  jarvis_ask:
+    url: "http://127.0.0.1:8765/ask"
+    method: POST
+    content_type: "application/json"
+    payload: '{"text": {{ text | tojson }}}'
+    timeout: 30
+    return_response: true
+
+  # Optional: the other two endpoints Jarvis exposes (assistant.py:391-406).
+  jarvis_volume:
+    url: "http://127.0.0.1:8765/volume"
+    method: POST
+    content_type: "application/json"
+    payload: '{"level": {{ level | int }}}'
+    timeout: 10
+
+  jarvis_alarm:
+    url: "http://127.0.0.1:8765/alarm"
+    method: POST
+    content_type: "application/json"
+    payload: >-
+      {"action": {{ action | tojson }},
+       "at_time": {{ at_time | default('') | tojson }},
+       "label": {{ label | default('') | tojson }}}
+    timeout: 10
+
+# `message | tojson` is what keeps this safe: it quotes and escapes the text, so
+# a PC alert containing a double quote or a backslash cannot break out of the
+# JSON payload.

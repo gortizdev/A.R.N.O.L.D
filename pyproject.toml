@@ -1,0 +1,89 @@
+[project]
+name = "arnold"
+version = "0.1.0"
+description = "A Rather Nice, Ordinary, Loyal Daemon: a Windows PC agent that monitors the machine, speaks for it, and bridges it to a J.A.R.V.I.S. voice assistant over MQTT"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "paho-mqtt>=2.1.0",
+    "psutil>=6.0.0",
+    "PyYAML>=6.0.1",
+    "pyperclip>=1.9.0",
+    "pillow>=10.0.0",
+    # Renders markdown artifacts. Pure Python, no C extension.
+    "markdown>=3.5",
+]
+
+[project.optional-dependencies]
+# Absolute volume control (set volume to 40%) rather than step-based.
+audio = ["pycaw>=20240210", "comtypes>=1.4.1"]
+# Mail and calendar, read from the classic Outlook desktop client over COM.
+outlook = ["pywin32>=306"]
+# Reading the text of the window in front through UI Automation, which is what
+# reaches inside Chrome, Electron, WPF and UWP. Without it, `desktop.read_window`
+# falls back to WM_GETTEXT and only classic Win32 windows answer.
+uia = ["comtypes>=1.4.1"]
+# Reading the inbox itself through Microsoft Graph, for the to-do list's
+# weekly document: a one-time browser sign-in, then the agent pulls the
+# attachment. The token cache is DPAPI-protected through pywin32 when present.
+mail = ["msal>=1.28", "requests>=2.31"]
+# Teams and Outlook toasts, read from the Windows notification centre.
+notifications = [
+    "winrt-runtime>=3.2",
+    "winrt-Windows.Foundation>=3.2",
+    "winrt-Windows.Foundation.Collections>=3.2",
+    "winrt-Windows.ApplicationModel>=3.2",
+    "winrt-Windows.UI.Notifications>=3.2",
+    "winrt-Windows.UI.Notifications.Management>=3.2",
+]
+# Local voice: wake word, speech-to-text, speech synthesis.
+voice = [
+    "sounddevice>=0.5.0",
+    "openwakeword>=0.6.0",
+    "faster-whisper>=1.0.0",
+    "piper-tts>=1.6.0",
+]
+# CUDA 12 runtime for faster-whisper. Optional: it falls back to CPU, which is
+# roughly 30x slower but still usable for short utterances.
+cuda = [
+    "nvidia-cublas-cu12",
+    "nvidia-cudnn-cu12",
+    "nvidia-cuda-nvrtc-cu12",
+]
+# Training your own wake word with openWakeWord's trainer
+# (`arnold wake train`). Heavy: PyTorch plus the augmentation
+# stack. For the GPU, install torch from the CUDA index first - see the
+# README, "Wake words". Deliberately leaves out tensorflow/onnx-tf: only the
+# .onnx export is needed and the tflite conversion does not install on
+# current Pythons.
+wake-train = [
+    "torch>=2.7",
+    "torchaudio>=2.7",
+    "torchinfo>=1.8.0",
+    "torchmetrics>=1.0",
+    "speechbrain>=1.0",
+    "audiomentations>=0.30.0",
+    "torch-audiomentations>=0.11.0",
+    "acoustics>=0.2.6",
+    "mutagen>=1.46.0",
+    "pronouncing>=0.2.0",
+    "onnx>=1.15",
+]
+dev = ["pytest>=8.0.0"]
+
+[project.scripts]
+arnold = "arnold.cli:main"
+# The pre-rename command name, kept so a Pi still running an older pi/ copy
+# can reach the PC. Drop it once the Pi has the current pi/ files.
+computer-assistant = "arnold.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/arnold"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

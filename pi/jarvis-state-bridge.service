@@ -1,0 +1,29 @@
+# Relays Jarvis's SSE state onto MQTT so the PC's animated face can follow it.
+#
+#   cp jarvis_state_bridge.py      /home/parzival/voiceassistant/
+#   cp jarvis-state-bridge.service /home/parzival/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now jarvis-state-bridge
+#   journalctl --user -u jarvis-state-bridge -f
+#
+# A user unit, matching jarvis-assistant.service. If you want it running
+# without being logged in: sudo loginctl enable-linger parzival
+
+[Unit]
+Description=Jarvis state to MQTT bridge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/parzival/voiceassistant
+# Reuses the same .env as Jarvis; MQTT_USER / MQTT_PASSWORD must be set there.
+EnvironmentFile=-/home/parzival/voiceassistant/.env
+ExecStart=/usr/bin/python3 /home/parzival/voiceassistant/jarvis_state_bridge.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

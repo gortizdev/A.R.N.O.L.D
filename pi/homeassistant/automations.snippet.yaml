@@ -1,0 +1,73 @@
+# Optional automations for Home Assistant on the Pi.
+#
+# The PC agent already speaks its own alerts directly (PC -> HA REST ->
+# rest_command.jarvis_say). These are for the other direction: reacting in HA
+# to the PC's MQTT sensors, which is useful when you want HA's conditions
+# (time of day, presence, other devices) to gate what Jarvis says.
+#
+# Append to automations.yaml, or paste into the HA automation editor in YAML
+# mode. Replace `desktop_rssbqj2` if you changed device.id in config.yaml.
+
+- id: pc_alert_announce
+  alias: "Announce PC alerts through Jarvis"
+  description: >-
+    Speaks any alert the PC publishes. Leave the PC's own `speak: true` off in
+    config.yaml if you use this, or alerts will be announced twice.
+  mode: queued
+  max: 10
+  trigger:
+    - platform: mqtt
+      topic: "computer_assistant/desktop_rssbqj2/alert"
+  condition:
+    # Don't announce a rule clearing, only a rule firing.
+    - condition: template
+      value_template: "{{ trigger.payload_json.state == 'firing' }}"
+    # Stay quiet overnight.
+    - condition: time
+      after: "08:00:00"
+      before: "23:00:00"
+  action:
+    - service: rest_command.jarvis_say
+      data:
+        message: "{{ trigger.payload_json.speech }}"
+
+- id: pc_offline_notice
+  alias: "Tell me when the PC drops off"
+  description: >-
+    The agent's MQTT last-will fires this if the PC loses power or the network,
+    which a PC-side alert obviously cannot do for itself.
+  mode: single
+  trigger:
+    - platform: mqtt
+      topic: "computer_assistant/desktop_rssbqj2/status"
+      payload: "offline"
+  condition:
+    # Ignore brief reconnects.
+    - condition: template
+      value_template: "{{ trigger.payload == 'offline' }}"
+  action:
+    - delay: "00:01:00"
+    - condition: state
+      entity_id: binary_sensor.desktop_rssbqj2_status
+      state: "off"
+    - service: rest_command.jarvis_say
+      data:
+        message: "The desktop has gone offline."
+
+- id: pc_disk_critical
+  alias: "Warn on PC disk space using HA's own threshold"
+  description: >-
+    An example of driving the announcement from the HA sensor rather than a PC
+    alert rule, so you can tune the threshold without touching the PC config.
+  mode: single
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.desktop_rssbqj2_disk_c_free
+      below: 15
+      for: "00:05:00"
+  action:
+    - service: rest_command.jarvis_say
+      data:
+        message: >-
+          The desktop is down to
+          {{ states('sensor.desktop_rssbqj2_disk_c_free') }} gigabytes on drive C.

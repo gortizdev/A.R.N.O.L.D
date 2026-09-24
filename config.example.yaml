@@ -1,0 +1,548 @@
+# arnold configuration
+#
+# Copy to config.yaml and edit. config.yaml is gitignored because it holds
+# credentials. Any value may reference an environment variable as ${VAR} or
+# ${VAR:default} if you would rather keep secrets out of the file entirely.
+
+device:
+  # Used in MQTT topics and Home Assistant entity ids. Defaults to the hostname.
+  id: desktop_rssbqj2
+  # What Jarvis calls this machine out loud.
+  friendly_name: "the desktop"
+
+# Who the assistant on this PC is. Jarvis is the one on the Pi; this is a
+# different character with its own name, wake word (voice.wake_word), voice
+# and colours, so you always know which of the two answered. They talk to
+# each other: this one can ask Jarvis things and have him speak in the other
+# room, and Jarvis reaches this PC over SSH as before.
+#
+# Renaming: the name is free text, but the wake word is a trained model.
+# hey_arnold ships in models/wake; openWakeWord itself carries hey_mycroft,
+# hey_jarvis, alexa and hey_rhasspy; any other name needs a custom model - `arnold wake train "hey athena"`,
+# or the Colab notebook it points you at, then `wake install`.
+assistant:
+  # Which identity is active. arnold, mycroft and jarvis are built in; blank means
+  # the flat fields below stand exactly as written. `arnold
+  # profile use <name>` changes this one line; running processes follow.
+  profile: arnold
+  name: Arnold
+  voice: marin               # Jarvis is cedar
+  persona: ""                # blank = the built-in character, written for `name`
+  delivery: ""               # how the spoken "Yes?" is delivered; blank = built-in
+  mirror_jarvis: false       # true = be Jarvis again (his voice, prompt and colours)
+  # Named identities. Each field is optional and only the fields you set
+  # override the ones above (plus voice.wake_word, face.palette, face.design).
+  # A built-in name here changes just those fields of the built-in.
+  profiles: {}
+  #  athena:
+  #    name: Athena
+  #    voice: sage
+  #    persona: "You are Athena, ..."
+  #    wake_word: hey_athena     # bundled, a name in voice.wake_word_dir, or a path
+  #    palette: steel
+  #    design: lattice
+  #  jarvis:
+  #    voice: ash                # one field of the built-in, the rest as shipped
+
+voice:
+  # The wake word: the name of an .onnx in wake_word_dir (hey_arnold ships
+  # there), a bundled model (hey_mycroft, hey_jarvis, alexa, hey_rhasspy), or
+  # a path to one.
+  # Note that an active profile with a wake_word of its own overrides this.
+  wake_word: hey_arnold
+  wake_word_dir: models/wake   # where `wake install` and `wake train` put models
+  # Only for when both machines answer the same wake word: it tells the Pi to
+  # stand down while this PC is up. With different wake words it would just
+  # silence Jarvis for nothing.
+  claim_wake_word: false
+
+  # Looking at the screen. Two independent switches:
+  #   vision      - take a screenshot and send it as an image. Off means no
+  #                 picture of your screen ever leaves this machine.
+  #   screen_text - read the text of the window in front instead, through UI
+  #                 Automation. Narrower than a screenshot (one window, no
+  #                 image), but the text still goes to the model when a voice
+  #                 session asks. Needs the uia extra for modern apps.
+  vision: true
+  screen_text: true
+  # Never read a window whose process name or title contains one of these.
+  # Checked before anything is read at all.
+  screen_text_deny:
+    - keepass
+    - bitwarden
+    - 1password
+    - lastpass
+    - dashlane
+    - private browsing
+    - incognito
+    - inprivate
+  screen_text_max_chars: 4000
+  screen_text_timeout_seconds: 4.0
+
+mqtt:
+  enabled: true
+  host: 192.168.1.171          # the Pi
+  port: 1883
+  # Mosquitto on the Pi sets allow_anonymous false, so these are required.
+  # Create them on the Pi with:
+  #   docker exec -it <mosquitto> mosquitto_passwd /mosquitto/config/passwords pc-agent
+  username: pc-agent
+  password: ${MQTT_PASSWORD}
+  base_topic: computer_assistant   # MQTT topic root. The Pi and the HA automations subscribe here, so it kept its pre-rename value.
+  # Publishing HA MQTT Discovery makes this PC appear in Home Assistant as a
+  # device with sensors, with no YAML editing on the Pi.
+  enable_discovery: true
+  discovery_prefix: homeassistant
+
+jarvis:
+  # home_assistant - POST to HA's REST API, which relays to Jarvis's loopback
+  #                  /say via rest_command. Recommended: no tunnel to hold open.
+  # ssh            - ssh to the Pi and curl 127.0.0.1:8765/say directly.
+  #                  Needs an SSH key from this PC to the Pi.
+  # none           - never speak; telemetry and alerts only.
+  speech_route: home_assistant
+
+  home_assistant:
+    url: http://192.168.1.171:8123
+    # Long-lived access token from your HA profile page. Do not reuse Jarvis's
+    # own token from /home/parzival/voiceassistant/.env - make a separate one.
+    token: ${HA_TOKEN}
+    # Must exist in HA's configuration.yaml. See
+    # pi/homeassistant/configuration.snippet.yaml for the definition to add.
+    say_service: rest_command/jarvis_say
+    message_field: message
+
+  ssh:
+    host: 192.168.1.171
+    user: parzival
+    port: 22
+    key_path: ""               # e.g. C:/Users/geogo/.ssh/id_ed25519
+    hud_port: 8765
+
+# How this PC says things out loud.
+#
+# Everything the agent volunteers - an alert, a notice, a reminder, a timer -
+# used to go to Jarvis on the Pi and nowhere else, so with the Pi off it was
+# written to the log and lost. This is the PC's own mouth.
+speech:
+  # jarvis - the Pi only, exactly as before.
+  # local  - this PC's speakers only.
+  # both   - say it in both rooms.
+  # auto   - try the Pi; speak here only if he could not be reached. Nothing
+  #          changes while the Pi is up, and nothing is lost when it is not.
+  # none   - never speak.
+  # Blank follows jarvis.speech_route above, so upgrading changes nothing.
+  route: auto
+  # auto uses voice.tts_backend (OpenAI, with Piper as the net).
+  backend: auto
+  output_device: ""          # blank = voice.output_device, then the default
+  volume: 0.8
+  # Speaking happens on one worker thread, so the agent's tick never waits.
+  max_queued: 8
+  stale_after_seconds: 90    # nobody wants a nine-minute-old alert read out
+  # After the Pi refuses, stop asking him for a while, or every line pays a
+  # Home Assistant timeout before anything is said here.
+  jarvis_retry_seconds: 60
+  jarvis_retry_max_seconds: 600
+  # Hold a line while a voice conversation is open rather than talking over it.
+  defer_to_conversation: true
+  defer_seconds: 60
+  # Move the face's mouth while the agent itself is talking.
+  publish_face_state: true
+  ring_volume: 0.6           # the timer sound
+
+security:
+  # Inbound commands are HMAC-signed. Generate with:
+  #   arnold gen-secret
+  # The same value goes in the Pi-side helper (pi/jarvis_pc.py).
+  shared_secret: ${CA_SHARED_SECRET}
+  require_signature: true
+  max_clock_skew_seconds: 120
+
+  # Gates shutdown, restart, sleep, hibernate, logoff, kill_process, run_script.
+  # Leave false until you have tested the rest.
+  allow_destructive: false
+
+  # (voice.screen_text, below, governs reading what is on screen.)
+
+  # Only these can be launched by name. Absolute paths only.
+  launch_allowlist:
+    steam: "C:/Program Files (x86)/Steam/steam.exe"
+    spotify: "C:/Users/geogo/AppData/Roaming/Spotify/Spotify.exe"
+    # notepad: "C:/Windows/System32/notepad.exe"
+
+  # Named shell commands runnable via control.run_script (destructive-gated).
+  script_allowlist: {}
+    # backup: "powershell -NoProfile -File C:/scripts/backup.ps1"
+
+telemetry:
+  interval_seconds: 10
+  retain: true
+  publish_active_window: true
+
+monitors:
+  # Empty means autodetect fixed drives.
+  disks: []
+  # Watched processes become binary sensors in HA and can drive alert rules.
+  watch_processes:
+    - steam.exe
+  gpu: true
+  top_processes: 5
+
+# The floating animated face (`arnold face`). It reacts to alerts
+# from the local agent on its own, and to listening/thinking/speaking published
+# on jarvis_topic_prefix - by the PC's own voice session, or by
+# pi/jarvis_state_bridge.py when the Pi is the one answering.
+face:
+  enabled: true
+  # holo = the J.A.R.V.I.S. core: a spinning cage of gold filament that flares
+  # and bristles with the voice. orb = the older cartoon face with eyes.
+  style: holo
+  size: 200
+  position: bottom-right     # anchor name, or explicit "x,y"
+  margin: 24
+  opacity: 0.94
+  always_on_top: true
+  fps: 60                    # up to 144; the animation is frame-rate independent
+  supersample: 2             # 1 is cheaper but jaggier
+  hide_when_idle: false      # true = only appear when something is happening
+  tray: true                 # notification-area icon: Jarvis status at a glance,
+                             # left-click hides/shows the avatar
+  follow_cursor: true        # holo leans towards the mouse; orb points its eyes
+  palette: ""                # steel (cool cyan) or gold (the J.A.R.V.I.S. core);
+                             # blank = steel, or gold when mirroring Jarvis
+  design: ""                 # lattice (Arnold's ruled globe) or core (the
+                             # J.A.R.V.I.S. sphere); blank follows the same rule
+  topic_prefix: ""           # this PC's own voice state; blank = "<name>/hud"
+  jarvis_topic_prefix: jarvis/hud   # where the Pi relays Jarvis's state
+  follow_jarvis: false       # true = also light up when Jarvis is talking on the Pi
+
+# The Claude Code sessions open on this machine - in the Claude desktop app,
+# VS Code or a terminal. Their transcripts under ~/.claude are tailed, so the
+# console shows what each was asked, what it is doing and what it last said,
+# with the dev servers it started matched to it by folder. Running sessions
+# also take a prompt (`claude.prompt`, "tell the Ellipse Hub session to run
+# the tests") over the same channel their SendMessage uses.
+#
+# `arnold claude hooks install` adds a hook to ~/.claude/settings.json
+# so every session reports turn ends and permission prompts as they happen; it
+# works without, a little less precisely.
+claude:
+  enabled: true
+  home: ""                   # blank = ~/.claude (or $CLAUDE_CONFIG_DIR)
+  poll_seconds: 3
+  scan_seconds: 10           # how often ~/.claude/projects is rescanned
+  apps_seconds: 10           # how often listening ports are read and probed
+  recent_minutes: 240        # a transcript quiet longer than this drops off
+  events_file: logs/claude-events.jsonl   # where the hooks write
+  speak_when_done: true      # say when a session finishes a turn...
+  speak_after_seconds: 45    #   ...if the turn took at least this long
+  speak_needs_input: true    # say when one stops for a question or a permission
+  speak_apps: false          # say when a dev server comes or goes
+  respect_quiet_hours: true
+  allow_prompt: true         # claude.prompt: put words into a session
+  prompt_prefix: ""          # e.g. "(via Arnold)"; blank sends the words as spoken
+  # A message into a session carries the session's own permission class
+  # (bypass or prompting), or the session holds it for a review. The
+  # transcript normally says which; this is the guess when it does not.
+  assume_permission_class: bypass
+  # A terminal or VS Code session with no live process cannot be messaged;
+  # with this on, the prompt runs through the CLI against the same transcript
+  # instead, and is there when the session is next resumed. Never applied to
+  # a desktop-app conversation: the app forks a fresh transcript for each
+  # turn it starts, so a turn appended behind its back would never be shown.
+  resume_fallback: true
+  cli_path: ""               # blank = PATH, the usual installs, then bundled copies
+  permission_mode: acceptEdits   # for the CLI fallback
+
+# The dashboard (`arnold ui`): vitals, alerts, the conversation,
+# and a button for every command. It can run anything the CLI can, so it binds
+# to loopback - as privileged as a terminal window on this PC, and no more.
+ui:
+  enabled: true
+  host: 127.0.0.1
+  port: 8770
+  # Required before host may be anything else. `arnold gen-secret`
+  # makes one; it then appears in the dashboard URL.
+  token: ""
+  open_browser: true
+  refresh_seconds: 2
+  log_lines: 200
+
+# What the assistant remembers between conversations. A realtime session ends
+# after a few seconds of silence, so without this every wake word introduces it
+# to you again. Facts are kept until forgotten; the tail of the last
+# conversation is carried only while it is still fresh.
+#
+# `arnold memory list` shows everything held, and
+# `arnold memory forget <words>` drops one. The file is plain text.
+memory:
+  enabled: true
+  file: logs/memory.json
+  conversation_file: logs/conversations.jsonl
+  max_facts: 500
+  inject_facts: 40           # how many are put in front of a voice session
+  carry_conversation: true
+  carry_turns: 12
+  carry_max_age_minutes: 180
+  max_conversations: 200
+
+# Mail and calendar, read out of the classic Outlook desktop client over COM.
+# Off by default: everything else here reads the machine, this reads a mailbox.
+#
+# No Azure app registration, no token, no admin consent - Outlook is already
+# signed in as you and MAPI hands over the same mailbox. It does need classic
+# Outlook (the Office one) open on the logged-on desktop; the new Outlook has no
+# COM automation at all.
+#
+# Teams meetings come through the calendar, not a Teams API: the invitation
+# carries its own join link, which is what `web.join_meeting` opens.
+outlook:
+  enabled: false
+  mail: true
+  calendar: true
+  poll_seconds: 60           # worst-case lateness for noticing new mail
+  require_running: true      # attach to your Outlook; never start one
+  lookahead_hours: 12
+  max_events: 60             # cap: an endless recurring series expands forever
+  detail_events: 6           # how many get a body read, to find a join link
+  include_all_day: false     # all-day events are not meetings to warn about
+  scan_messages: 15          # newest-first inbox items walked for one to mention
+  include_subjects: true     # false keeps "mail arrived" without saying about what
+  ignore_senders: []         # substring, case-insensitive, on the display name
+  ignore_subjects: []        #   e.g. ["newsletter", "no-reply", "jira"]
+
+# Teams and the *new* Outlook, which expose no COM: read from the Windows
+# notification centre instead. The assistant sees exactly what the toast said -
+# sender, subject, first line - and no more. Windows must allow it: Settings >
+# Privacy > Notifications > "Let apps access your notifications".
+notifications:
+  enabled: false
+  speak: false               # true = say each one aloud as it lands
+  include_text: true         # false = only who it is from
+  respect_quiet_hours: true  # spoken ones honour proactive.quiet_hours
+  speak_up_to: 3             # more than this in one go is summarised as a count
+  poll_seconds: 5
+  keep: 40                   # how many "what did I miss" can reach back over
+  apps: {}                   # label -> app id substring; blank = Teams and Outlook
+  ignore_senders: []         # substring, case-insensitive, on the sender
+  ignore_subjects: []        #   ... on the message or subject
+
+# The to-do list on the dashboard's Today tab, and the document it is filled
+# from every week. The document arrives by email in the *new* Outlook, which
+# nothing local can read; but the attachment touches the disk in two places,
+# and both are watched: Outlook's own attachment cache (filled the moment the
+# attachment is opened or previewed in Outlook) and OneDrive's "Email
+# attachments" folder (filled by a "save attachments to OneDrive" flow, no click
+# needed). The newest document whose path mentions one of `match` becomes this
+# week's list; ticks on items still in the new document survive; items added
+# by hand are never touched.
+todo:
+  enabled: true
+  file: ""                   # blank = todos.json beside the state file
+  max_items: 300
+  source_name: geo update    # how its items are labelled
+  weekday: wednesday         # when it is expected, so the page can say "not yet"
+  watch_folders: []          # blank = OneDrive/Email attachments + the Outlook cache
+    # - "~/OneDrive/Email attachments"
+    # - "%LOCALAPPDATA%/Microsoft/Olk/Attachments"
+  match: ["geo update", "geo projects"]   # subject or path substrings, case-insensitive; [] = any document
+  extensions: [".docx", ".pdf", ".txt", ".md"]   # PDFs need `pip install pypdf`
+  scan_seconds: 120
+  # The inbox itself, through Microsoft Graph: the first place looked, once
+  # somebody has signed in. `arnold mail login` (or the "Sign in
+  # to Outlook" button on the Today tab) shows a code to enter in a browser;
+  # from then on the agent pulls the attachment straight from the email.
+  # Only Mail.Read is asked for. The folders above stay as the fallback.
+  mail:
+    enabled: true
+    client_id: ""            # blank = Microsoft's Graph PowerShell app; or your own public-client app id
+    tenant: common           # or your tenant id / domain, to pin it to one organisation
+    subject: []              # substrings of the subject; blank = todo.match
+    with_attachments: true
+    poll_seconds: 300
+    lookback_days: 8
+    save_folder: ""          # blank = logs/mail beside the state file
+    token_file: ""           # blank = %LOCALAPPDATA%\arnold\graph-token.bin (DPAPI-encrypted)
+
+# What the machine has been doing, not just what it is doing. Without a series
+# the assistant can say "drive C is at 91 percent" and never "you're losing 12
+# gigabytes a day, so it's full in a fortnight" - which is the useful answer.
+# Fine samples drive the dashboard sparklines; hourly buckets are what a trend
+# is measured over.
+history:
+  enabled: true
+  fine_samples: 180          # half an hour at a 10s tick
+  hourly_buckets: 2160       # 90 days
+
+# Speaking without being asked.
+#
+# `enabled` runs the observers and writes down what it would have said;
+# `speak` is what lets it actually say any of it. Leave speak false for a
+# week and read the Noticed panel on the dashboard first - an assistant that
+# starts talking in your house is not a thing to switch on unseen.
+proactive:
+  enabled: true
+  speak: false
+  interval_seconds: 300
+  quiet_hours: "22:30-08:00"   # crosses midnight; blank for never
+  min_gap_minutes: 45
+  max_per_day: 6
+  repeat_after_hours: 24       # never say the same thing twice in a day
+  min_priority: 4
+
+  # rules - the most urgent notice that clears the bar.
+  # model - ask a small model whether any of it is worth interrupting for,
+  #         given the time and what is on screen. Needs OPENAI_API_KEY, and
+  #         falls back to the rules whenever it cannot answer.
+  judge: rules
+  judge_model: gpt-4o-mini
+
+  # What the observers count as worth raising.
+  disk_days_ahead: 21          # mention a disk this close to full
+  memory_climb_per_day: 12     # percentage points a day
+  gpu_drift_per_day: 1.5       # degrees a day, over days not minutes
+  log_error_threshold: 5       # errors in an hour
+  # A pending Windows update, on a machine that has been up long enough to
+  # have been ignoring it. Neither half is worth saying alone. 0 = off.
+  reboot_after_hours: 72
+  announce_watched_exit: true  # "Steam has closed, after four hours."
+  battery_percent: 20          # on battery and at or below this...
+  battery_minutes: 25          # ...or this little time left
+  pi_quiet_hours: 2            # say when the Pi has been unreachable this long
+  announce_missing_drives: true
+  # "You've been at this for four hours." Off, and priority 3, which is under
+  # min_priority - so switching it on only records it. Lower min_priority as
+  # well if you actually want to be told.
+  break_after_hours: 0
+
+# Reminders, timers and alarms, fired by the agent's tick.
+#   "remind me to check the render in twenty minutes"
+#   "set a timer for twenty minutes"      <- rings on this PC's speakers
+#   "every day at nine, tell me the disk situation"
+schedule:
+  enabled: true
+  max_jobs: 200
+  timers: true                 # kitchen-style timers that ring here
+  ring: true                   # the sound; without it a timer is a reminder
+  max_timer_hours: 24          # longer than this should be a reminder
+  # Commands a scheduled job may run. Empty means reminders only. A mis-heard
+  # "shut down at midnight" that becomes a standing order is a much worse
+  # failure than one that shuts down once, so this stays deliberate.
+  allow_commands: []
+    # - control.lock
+    # - query.system
+
+log_level: INFO
+log_file: logs/agent.log
+
+# The running agent records live state here each tick so that one-shot
+# `arnold exec` calls - the path Jarvis uses over SSH - can report
+# which alerts are currently firing. Without it they would always answer "no
+# alerts", because a fresh process has no alert history.
+state_file: logs/state.json
+
+# Alert rules.
+#   metric        - dotted path into the telemetry snapshot (see `diag --json`)
+#   op            - one of > >= < <= == !=
+#   for_seconds   - condition must hold this long before firing
+#   clear_threshold - hysteresis: where the rule stops firing
+#   cooldown_seconds - minimum gap between announcements
+#   speak         - send to Jarvis text-to-speech
+#   notify        - also show a Windows toast
+alerts:
+  - name: cpu_sustained
+    metric: cpu.percent
+    op: ">"
+    threshold: 90
+    clear_threshold: 70
+    for_seconds: 120
+    cooldown_seconds: 900
+    severity: warning
+    speak: true
+    message: "CPU on {device} has been above 90 percent for two minutes, currently {value_speech} percent."
+
+  - name: memory_high
+    metric: memory.percent
+    op: ">"
+    threshold: 90
+    clear_threshold: 80
+    for_seconds: 60
+    cooldown_seconds: 900
+    severity: warning
+    speak: true
+
+  - name: disk_c_low
+    metric: disks.C.free_bytes
+    op: "<"
+    threshold: 21474836480      # 20 GB
+    clear_threshold: 32212254720  # 30 GB
+    for_seconds: 30
+    cooldown_seconds: 21600
+    severity: critical
+    speak: true
+    notify: true
+    message: "Drive C on {device} is down to {value_human} free."
+
+  - name: gpu_hot
+    metric: gpus.0.temperature_c
+    op: ">"
+    threshold: 83
+    clear_threshold: 75
+    for_seconds: 60
+    cooldown_seconds: 900
+    severity: warning
+    speak: true
+    message: "The GPU is running at {value_speech} degrees."
+
+  # Mail and meetings. Both stay silent unless outlook.enabled is true: a rule
+  # whose metric is absent from the snapshot never fires.
+  #
+  # A message template can reach into the snapshot with a dotted path, which is
+  # what makes these worth hearing - "a meeting starts in 5 minutes" has to say
+  # which meeting, and that is not the metric that fired.
+  - name: meeting_soon
+    metric: calendar.minutes_until_next
+    op: "<"
+    threshold: 5
+    for_seconds: 0
+    # Long enough to cover the walk down to zero and the gap before the next
+    # meeting, so one reminder is one reminder.
+    cooldown_seconds: 900
+    severity: info
+    speak: true
+    notify: true
+    message: "{calendar.next.subject} starts in {value_speech} minutes."
+
+  # Not a threshold on the unread count: that fires once and then sits there.
+  # Time-since-arrival crosses back over the line by itself, so each new message
+  # is a fresh event and one you have not read yet is not announced twice.
+  - name: mail_arrived
+    metric: mail.seconds_since_latest
+    op: "<"
+    threshold: 120
+    for_seconds: 0
+    cooldown_seconds: 300
+    severity: info
+    speak: true
+    message: "New mail from {mail.latest.from}, {mail.latest.subject}."
+
+  # Process rules take `process` instead of `metric`. The name must also appear
+  # in monitors.watch_processes above.
+  - name: steam_stopped
+    process: steam.exe
+    expect: running
+    for_seconds: 30
+    cooldown_seconds: 3600
+    severity: info
+    speak: false
+
+# "What's the weather?" Open-Meteo, no key needed. Blank place and
+# coordinates = work out where this PC is from its public IP.
+weather:
+  enabled: true
+  place: ""                  # e.g. "Miami, FL"; pins the location
+  latitude:                  # exact coordinates win over place
+  longitude:
+  units: auto                # auto (F in the US), metric or imperial
+
