@@ -51,6 +51,7 @@ voice:
   # Note that an active profile with a wake_word of its own overrides this.
   wake_word: hey_arnold
   wake_word_dir: models/wake   # where `wake install` and `wake train` put models
+  speed: 1.0                   # how fast it talks: 1.0 = the model's pace, 0.25-1.5
   # Only for when both machines answer the same wake word: it tells the Pi to
   # stand down while this PC is up. With different wake words it would just
   # silence Jarvis for nothing.
@@ -95,6 +96,10 @@ mqtt:
   discovery_prefix: homeassistant
 
 jarvis:
+  # false = the Pi is off: nothing tries to reach it. Speech stays on this
+  # PC and the ask/tell Jarvis and Home Assistant voice tools are not offered.
+  enabled: true
+
   # home_assistant - POST to HA's REST API, which relays to Jarvis's loopback
   #                  /say via rest_command. Recommended: no tunnel to hold open.
   # ssh            - ssh to the Pi and curl 127.0.0.1:8765/say directly.
@@ -328,6 +333,52 @@ notifications:
   ignore_senders: []         # substring, case-insensitive, on the sender
   ignore_subjects: []        #   ... on the message or subject
 
+# The Elegoo Centauri Carbon 2. The agent keeps one connection to it (the
+# printer runs its own MQTT broker) and says when a print finishes or goes
+# wrong; ask "how's the print going?" for the rest. Read-only: it never
+# starts, pauses or stops anything. `arnold printer discover` finds it and
+# `arnold printer test --code 123456` checks an access code.
+printer:
+  enabled: false
+  host: ""                   # blank = found by broadcast
+  serial: ""
+  access_code: ""            # Settings > Network on the printer's screen
+  speak_started: false
+  speak_finished: true
+  speak_problems: true       # paused, stopped, errors, lost mid-print
+  respect_quiet_hours: true
+  # printer.make: "make me a cable clip" - written as OpenSCAD, rendered to
+  # STL in prints/ and opened in Elegoo Slicer. Never starts a print.
+  openscad: ""               # blank = Program Files\OpenSCAD
+  slicer: ""                 # blank = Program Files\ElegooSlicer\elegoo-slicer.exe
+  max_size_mm: 256           # longest side the build volume takes
+  render_timeout: 90         # seconds
+  # printer.sculpt: "sculpt me a dragon" - OpenAI draws it, a Hunyuan3D-2
+  # Hugging Face Space turns the picture into a mesh, and it is cleaned,
+  # scaled and opened in the slicer. Needs `pip install -e .[sculpt]`.
+  filament: PLA              # PLA | PETG | ABS | ASA | TPU - for the slicer settings suggested with each part
+  sculpt_enabled: true
+  sculpt_image_model: gpt-image-1
+  # printer.adjust: "give it a party hat", "walls 2 mm thicker" - a new
+  # version of a part, the original kept.
+  adjust_image_model: gpt-image-1.5   # gpt-image-1 barely changes anything it edits
+  adjust_code_model: gpt-5.4-mini
+  sculpt_space: tencent/Hunyuan3D-2
+  sculpt_views: front-side-back   # front-side-back (three views) | front-back | front
+  sculpt_check_model: gpt-5.4-mini # tells which way the side view faces
+  sculpt_ask_model: gpt-5.4-mini   # asks follow-up questions before sculpting a short request
+  sculpt_backend: auto       # auto | local | space - auto uses this PC's GPU once models/hy3d is set up
+  sculpt_mv_space: tencent/Hunyuan3D-2mv
+  sculpt_local_python: ""    # blank = models/hy3d/.venv beside this file
+  sculpt_local_repo: ""      # blank = models/hy3d/Hunyuan3D-2
+  sculpt_local_model: tencent/Hunyuan3D-2mv
+  sculpt_local_subfolder: hunyuan3d-dit-v2-mv-turbo
+  sculpt_local_steps: 5
+  sculpt_hf_token: ""        # blank = HF_TOKEN, then `hf auth login`
+  sculpt_height_mm: 60
+  sculpt_max_faces: 150000
+  sculpt_timeout: 600        # seconds, queue included
+
 # The to-do list on the dashboard's Today tab, and the document it is filled
 # from every week. The document arrives by email in the *new* Outlook, which
 # nothing local can read; but the attachment touches the disk in two places,
@@ -343,6 +394,7 @@ todo:
   max_items: 300
   source_name: geo update    # how its items are labelled
   weekday: wednesday         # when it is expected, so the page can say "not yet"
+  weekday_only: true         # only scan on that day; todo.sync still looks any day
   watch_folders: []          # blank = OneDrive/Email attachments + the Outlook cache
     # - "~/OneDrive/Email attachments"
     # - "%LOCALAPPDATA%/Microsoft/Olk/Attachments"
@@ -354,8 +406,9 @@ todo:
   # to Outlook" button on the Today tab) shows a code to enter in a browser;
   # from then on the agent pulls the attachment straight from the email.
   # Only Mail.Read is asked for. The folders above stay as the fallback.
+  # Switched off for now: the folders are the only route.
   mail:
-    enabled: true
+    enabled: false
     client_id: ""            # blank = Microsoft's Graph PowerShell app; or your own public-client app id
     tenant: common           # or your tenant id / domain, to pin it to one organisation
     subject: []              # substrings of the subject; blank = todo.match
@@ -546,3 +599,28 @@ weather:
   longitude:
   units: auto                # auto (F in the US), metric or imperial
 
+# `arnold game on|off` stops the tasks and boosts the PC the way Razer Cortex
+# does; `arnold game watch --install` does it by itself whenever a game starts.
+game:
+  boost: true
+  stop_tasks: true           # stop the agent, face and voice while playing
+  power_plan: high           # high | ultimate | balanced | a plan's name or GUID; blank = leave it
+  close_apps: [OneDrive.exe, Widgets.exe, PhoneExperienceHost.exe]  # wildcards ok
+  reopen_apps: true          # start them again afterwards
+  trim_memory: true          # empty other processes' working sets
+  game_priority: high        # high | above_normal | blank
+  games: []                  # exe names that are always a game, e.g. [valorant*.exe]
+  # game_folders: a process under one of these is a game (defaults: Steam,
+  # Epic, Xbox, GOG, Riot, EA, Ubisoft). ignore: never a game (wallpaper
+  # engines, crash reporters, anti-cheat, launchers, installers).
+  scan_seconds: 3
+  exit_grace_seconds: 20     # no game this long = the boost is undone
+  # Lossless Scaling, with `game watch`: started with the game, hotkey pressed
+  # once the game is in front. Games with an AutoScale profile are left to it.
+  # `arnold game scaling --install` once, so starting it needs no UAC prompt.
+  scaling: true
+  scaling_exe: ""            # blank = found under the Steam libraries
+  scaling_games: []          # only these exe names; empty = every game
+  scaling_delay_seconds: 8   # game in front this long before the hotkey
+  scaling_timeout_seconds: 180
+  scaling_warmup_seconds: 10 # a just-started Lossless Scaling ignores the hotkey until loaded

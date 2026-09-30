@@ -24,6 +24,7 @@ from .face.local import LocalFaceSender
 from .humanize import duration_speech
 from .jarvis import JarvisClient
 from .monitors.collector import Collector
+from .monitors.printer import PrinterWatch, job_name
 from .notices import Notice, NoticeBook, ProactiveEngine, World, _in_quiet_hours
 from .platform_win import IS_WINDOWS
 from .security import AuthError, CommandVerifier
@@ -47,6 +48,9 @@ class AssistantService:
         self.topics = Topics(config.mqtt.base_topic, config.device.id)
 
         self.collector = Collector(config.monitors, config.outlook, config.notifications, config.claude)
+        # Not in the collector: the printer takes only a few clients, so the
+        # agent alone holds a connection and everyone else reads the state file.
+        self.printer = PrinterWatch(config.printer)
         self.alerts = AlertEngine(config.alerts, device_name=config.device.friendly_name)
         self.registry = build_registry()
         self.jarvis = JarvisClient(config.jarvis)
@@ -187,6 +191,7 @@ class AssistantService:
         self.collector.outlook.start()
         self.collector.notifications.start()
         self.collector.claude.start()
+        self.printer.start()
 
         # The dashboard rides along in the agent, sharing its collector and its
         # alert history. Started here rather than in __init__ so nothing binds a
@@ -247,6 +252,7 @@ class AssistantService:
         self.collector.outlook.stop()
         self.collector.notifications.stop()
         self.collector.claude.stop()
+        self.printer.stop()
         if self._ui is not None:
             try:
                 self._ui.shutdown()
@@ -292,6 +298,7 @@ class AssistantService:
                 "notices": (
                     self.proactive.book.recent(8) if self.proactive is not None else []
                 ),
+                "printer": self.printer.status() if self.printer.enabled else None,
                 "jobs": (
                     [job.to_dict() for job in self.schedule.jobs()[:8]]
                     if self.schedule is not None
@@ -321,6 +328,7 @@ class AssistantService:
         self._run_due_jobs()
         self._announce_work()
         self._announce_claude()
+        self._announce_printer()
         self._sync_todos(snapshot)
         self._notice(snapshot, active)
 
@@ -432,6 +440,63 @@ class AssistantService:
                 )
             if spoken:
                 self.speech.say(text[:400])
+
+    def _announce_printer(self) -> None:
+        """Say when a print starts, finishes or goes wrong. Recorded in the
+        book either way, so the console shows it."""
+        fresh = self.printer.drain_new()
+        if not fresh:
+            return
+        cfg = self.config.printer
+        now = time.time()
+        quiet = cfg.respect_quiet_hours and _in_quiet_hours(self.config, now)
+        for event in fresh:
+            kind = event.get("kind")
+            what = job_name(event.get("file") or "")
+            text, priority, speak = "", 4, False
+            if kind == "started":
+                left = event.get("remaining_seconds")
+                text = f"The printer has started {what}" + (
+                    f"; about {duration_speech(float(left))} to go." if left else "."
+                )
+                speak, priority = cfg.speak_started, 3
+            elif kind == "resumed":
+                text, priority = f"The printer has resumed {what}.", 3
+            elif kind == "finished":
+                took = event.get("elapsed_seconds")
+                text = f"The printer has finished {what}" + (
+                    f" after {duration_speech(float(took))}." if took else "."
+                )
+                speak, priority = cfg.speak_finished, 6
+            elif kind == "paused":
+                text = f"The printer has paused {what} at {event.get('progress') or 0} percent."
+                speak, priority = cfg.speak_problems, 7
+            elif kind == "stopped":
+                text = f"The print of {what} was stopped at {event.get('progress') or 0} percent."
+                speak, priority = cfg.speak_problems, 6
+            elif kind == "error":
+                code = event.get("error_code")
+                text = f"The printer reports a problem with {what}" + (f", error {code}." if code else ".")
+                speak, priority = cfg.speak_problems, 8
+            elif kind == "lost":
+                text = f"I've lost touch with the printer in the middle of {what}."
+                speak, priority = cfg.speak_problems, 7
+            if not text:
+                continue
+            spoken = bool(speak and self.speech.enabled and not quiet)
+            if self.proactive is not None:
+                self.proactive.book.record(
+                    Notice(
+                        key=f"printer:{kind}:{int(event.get('ts') or now)}",
+                        text=text,
+                        priority=priority,
+                        detail={k: v for k, v in event.items() if k != "kind"} | {"kind": kind},
+                        ts=float(event.get("ts") or now),
+                    ),
+                    spoken=spoken,
+                )
+            if spoken:
+                self.speech.say(text)
 
     def _announce_work(self) -> None:
         """Pass on what Teams and Outlook just put up, if anything.

@@ -47,7 +47,7 @@ class JarvisError(RuntimeError):
 class JarvisClient:
     def __init__(self, config: JarvisConfig) -> None:
         self._config = config
-        self.route = config.speech_route
+        self.route = config.speech_route if config.enabled else "none"
 
     @property
     def enabled(self) -> bool:
@@ -90,6 +90,8 @@ class JarvisClient:
 
     def check(self) -> dict[str, Any]:
         """Probe the configured route without speaking. Never raises."""
+        if not self._config.enabled:
+            return {"ok": False, "route": "none", "detail": "the Pi is switched off (jarvis.enabled)"}
         if self.route == "none":
             return {"ok": True, "route": "none", "detail": "speech disabled"}
         try:

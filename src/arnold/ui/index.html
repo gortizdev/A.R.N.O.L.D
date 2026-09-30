@@ -3,39 +3,48 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="dark light">
+<meta name="color-scheme" content="dark">
 <title>Console</title>
+<link rel="icon" id="favicon" href="data:,">
 <style>
 /* ---------------------------------------------------------------------------
-   The console is six views behind one strip of tabs. It keeps the face's
-   vocabulary - cyan at rest, violet-white listening, teal thinking, ice
-   speaking, red alert - and spends its colour nowhere else, so a colour on the
-   page is always the machine telling you something. Type is Segoe UI Variable
-   throughout; the monospace face is kept for the log, the console stream and
-   numbers that have to line up.
+   The console is eight views behind one strip of tabs, dressed as the avatar:
+   the same dark the hologram hangs in, the same filament colours, the same
+   gauge ticks and studs. Colour is spent the way the face spends it - steel
+   cyan at rest, violet listening, teal thinking, ice speaking, red-orange on
+   alert (gold, orange and ice when the face wears the gold palette) - so a
+   colour on the page is always the machine telling you something. The mark in
+   the corner is not a logo; it is the avatar itself, drawn live by the same
+   geometry as face/holo.py.
    --------------------------------------------------------------------------- */
-:root {
-  --bg:     #0a1017;
-  --panel:  #101a25;
-  --raised: #162330;
-  --sunken: #0b131c;
-  --line:   rgba(150, 180, 210, .14);
-  --hair:   rgba(150, 180, 210, .08);
-  --ink:    #e9f0f7;
-  --dim:    #94a5b8;
-  --faint:  #66788b;
+@property --mode { syntax: "<color>"; inherits: true; initial-value: #6ec4ee; }
 
-  --cyan:   #38caff;
-  --violet: #9d7bff;
-  --amber:  #ffb545;
-  --rose:   #ff6f6f;
+:root {
+  color-scheme: dark;
+  /* steel: face/holo.py _STEEL, backdrop through to hot */
+  --bg:     #03080d;
+  --panel:  #06111a;
+  --raised: #0b1b27;
+  --sunken: #030a10;
+  --line:   rgba(110, 196, 238, .15);
+  --hair:   rgba(110, 196, 238, .08);
+  --ink:    #d6f2ff;
+  --dim:    #86a9bf;
+  --faint:  #557488;
+  --wire:   #248ac4;
+
+  --cyan:   #6ec4ee;
+  --violet: #c4a8ff;
+  --amber:  #ffb64a;
+  --rose:   #ff6c30;
   --green:  #46d18d;
-  --teal:   #4fd8b2;
-  --ice:    #a9e2ff;
-  --lilac:  #c9b4ff;
-  --warm:   #ffe6b0;
-  --orange: #f08a2a;
-  --gold:   #ffd27a;
+  --teal:   #5adcb4;
+  --ice:    #aae2ff;
+  --lilac:  #c4a8ff;
+  --warm:   #96c4ff;
+  --orange: #ff9e2e;
+  --gold:   #ffc864;
+  --grey:   #626a76;
 
   --mode: var(--cyan);
 
@@ -44,34 +53,22 @@
   --mono: "Cascadia Code", "Cascadia Mono", Consolas, ui-monospace, monospace;
 
   --gap: 1rem;
-  --r-panel: 16px;
-  --r-ctl: 9px;
-  --shadow: 0 1px 0 rgba(255,255,255,.035) inset, 0 12px 30px -18px rgba(0,0,0,.6);
+  --r-panel: 14px;
+  --r-ctl: 8px;
+  --shadow: 0 0 0 1px rgba(0,0,0,.35), 0 18px 40px -24px rgba(0,0,0,.9);
 }
-@media (prefers-color-scheme: light) {
-  :root {
-    --bg:     #eef2f6;
-    --panel:  #ffffff;
-    --raised: #f3f6f9;
-    --sunken: #e9eef3;
-    --line:   rgba(40, 70, 100, .16);
-    --hair:   rgba(40, 70, 100, .09);
-    --ink:    #142231;
-    --dim:    #56697c;
-    --faint:  #7f92a5;
-    --cyan:   #0a7fb0;
-    --violet: #6b4fd0;
-    --amber:  #b06d00;
-    --rose:   #c33b3b;
-    --green:  #1c8b5a;
-    --teal:   #178a6c;
-    --ice:    #2a8fc9;
-    --lilac:  #7a5fd6;
-    --warm:   #a6731a;
-    --orange: #c4611a;
-    --gold:   #b58a1f;
-    --shadow: 0 1px 2px rgba(20, 40, 60, .06), 0 10px 24px -18px rgba(20, 40, 60, .25);
-  }
+/* gold: face/holo.py _GOLD. Listening goes ice-white there, so it does here. */
+body[data-palette="gold"] {
+  --bg:     #0d0803;
+  --panel:  #150d05;
+  --raised: #20150a;
+  --sunken: #0a0602;
+  --line:   rgba(255, 182, 74, .15);
+  --hair:   rgba(255, 182, 74, .08);
+  --ink:    #ffe8ba;
+  --dim:    #c7a174;
+  --faint:  #86664a;
+  --wire:   #ee8818;
 }
 
 * { box-sizing: border-box; }
@@ -79,12 +76,17 @@ html, body { height: 100%; }
 body {
   margin: 0;
   background:
-    radial-gradient(900px 480px at 8% -10%, color-mix(in srgb, var(--mode) 13%, transparent), transparent 65%),
+    radial-gradient(1100px 620px at 100% 0%, color-mix(in srgb, var(--mode) 11%, transparent), transparent 62%),
+    radial-gradient(900px 520px at 0% 100%, color-mix(in srgb, var(--wire) 7%, transparent), transparent 65%),
     var(--bg);
+  background-attachment: fixed;
   color: var(--ink);
   font: 15px/1.5 var(--ui);
   -webkit-font-smoothing: antialiased;
+  transition: --mode .3s ease;
+  scrollbar-color: color-mix(in srgb, var(--mode) 30%, var(--raised)) transparent;
 }
+::selection { background: color-mix(in srgb, var(--mode) 35%, transparent); color: var(--ink); }
 button, input, textarea, select { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--mode); outline-offset: 2px; border-radius: 4px; }
 h1, h2, h3 { margin: 0; font-family: var(--display); font-weight: 600; letter-spacing: -.01em; }
@@ -94,13 +96,26 @@ body[data-mode="listening"] { --mode: var(--lilac); }
 body[data-mode="thinking"]  { --mode: var(--teal); }
 body[data-mode="speaking"]  { --mode: var(--ice); }
 body[data-mode="alert"]     { --mode: var(--rose); }
-body[data-mode="offline"]   { --mode: var(--faint); }
+body[data-mode="offline"]   { --mode: var(--grey); }
 body[data-palette="gold"]                        { --mode: var(--amber); }
 body[data-palette="gold"][data-mode="listening"] { --mode: var(--warm); }
 body[data-palette="gold"][data-mode="thinking"]  { --mode: var(--orange); }
 body[data-palette="gold"][data-mode="speaking"]  { --mode: var(--gold); }
 body[data-palette="gold"][data-mode="alert"]     { --mode: var(--rose); }
-body[data-palette="gold"][data-mode="offline"]   { --mode: var(--faint); }
+body[data-palette="gold"][data-mode="offline"]   { --mode: var(--grey); }
+
+/* -- the avatar, twice ------------------------------------------------------
+   A ghost of it turns behind the page; the live one sits in the header. */
+.backdrop {
+  position: fixed; z-index: 0; pointer-events: none;
+  width: min(92vh, 960px); height: min(92vh, 960px);
+  right: max(-22vh, -240px); top: max(-18vh, -190px);
+  opacity: .16;
+  -webkit-mask-image: radial-gradient(closest-side, #000 55%, transparent);
+  mask-image: radial-gradient(closest-side, #000 55%, transparent);
+}
+@media (max-width: 640px) { .backdrop { width: 120vw; height: 120vw; right: -45vw; top: -30vw; opacity: .12; } }
+.shell { position: relative; z-index: 1; }
 
 /* -- shell ----------------------------------------------------------------- */
 .shell { max-width: 1400px; margin: 0 auto; padding: 1rem 1.25rem 3rem; }
@@ -113,48 +128,33 @@ body[data-palette="gold"][data-mode="offline"]   { --mode: var(--faint); }
   position: relative;
 }
 .identity { min-width: 0; }
-.identity h1 { font-size: 1.5rem; line-height: 1.15; }
+.identity h1 {
+  font-size: 1.55rem; line-height: 1.15; letter-spacing: .08em;
+  text-shadow: 0 0 18px color-mix(in srgb, var(--mode) 45%, transparent);
+}
 .identity p { margin: .15rem 0 0; font-size: .8rem; color: var(--faint); }
 .identity .motto { font-size: .85rem; color: var(--dim); letter-spacing: .02em; }
-.chips { display: flex; gap: .4rem; flex-wrap: wrap; margin-left: auto; }
+.chips { display: flex; gap: .6rem; flex-wrap: wrap; margin-left: auto; justify-content: flex-end; }
 .chip {
-  font-size: .76rem; line-height: 1;
+  font-size: .84rem; line-height: 1;
   color: var(--dim);
-  background: var(--panel);
+  background: color-mix(in srgb, var(--panel) 85%, transparent);
   border: 1px solid var(--line);
   border-radius: 999px;
-  padding: .42rem .7rem .42rem .55rem;
-  display: inline-flex; align-items: center; gap: .45rem;
+  padding: .6rem 1rem .6rem .8rem;
+  display: inline-flex; align-items: center; gap: .55rem;
   white-space: nowrap;
 }
-.chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
-.chip[data-tone="ok"]::before   { background: var(--green); }
-.chip[data-tone="warn"]::before { background: var(--amber); }
-.chip[data-tone="bad"]::before  { background: var(--rose); }
+.chip::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+.chip[data-tone="ok"]::before   { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.chip[data-tone="warn"]::before { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+.chip[data-tone="bad"]::before  { background: var(--rose); box-shadow: 0 0 6px var(--rose); }
+.chip[data-tone="live"] { border-color: color-mix(in srgb, var(--mode) 45%, var(--line)); color: var(--ink); }
 .chip[data-tone="live"]::before { background: var(--mode); box-shadow: 0 0 8px var(--mode); }
 
-/* the seal: the assistant's aperture, the same mark its pages carry */
-.seal { width: 56px; height: 56px; flex: none; fill: none; stroke: var(--mode); stroke-width: 1.5; }
-.seal .rim { stroke: var(--line); stroke-width: 1.2; }
-.seal .ticks { stroke: var(--dim); stroke-width: 1.6; }
-.seal .far { stroke: var(--dim); opacity: .75; }
-.seal .pupil { stroke: var(--mode); stroke-width: 1; transform-origin: 50% 50%; }
-.seal .core { fill: var(--mode); stroke: none; transform-origin: 50% 50%; filter: drop-shadow(0 0 4px var(--mode)); }
-.seal .blades { transform-origin: 50% 50%; animation: breathe 7s ease-in-out infinite; }
-@keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
-@keyframes pulse   { 0% { transform: scale(.8); opacity: .9; } 100% { transform: scale(2.6); opacity: 0; } }
-@keyframes spin    { to { transform: rotate(360deg); } }
-@keyframes throb   { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.5); } }
-@keyframes flare   { 0%, 100% { transform: scale(.82); } 50% { transform: scale(.9); } }
-body[data-mode="listening"] .seal .pupil  { animation: pulse 1.9s ease-out infinite; }
-body[data-mode="listening"] .seal .blades { animation: none; transform: scale(1.06); }
-body[data-mode="thinking"]  .seal .blades { animation: spin 9s linear infinite; }
-body[data-mode="speaking"]  .seal .core   { animation: throb .9s ease-in-out infinite; }
-body[data-mode="alert"]     .seal .blades { animation: flare 1.05s ease-in-out infinite; }
-body[data-mode="alert"]     .seal .core   { animation: throb 1.05s ease-in-out infinite; }
-body[data-mode="offline"]   .seal         { opacity: .4; }
-body[data-mode="offline"]   .seal .blades { animation: none; }
-body[data-mode="offline"]   .seal .core   { filter: none; }
+/* the mark: the avatar, live, at the size of an icon */
+.mark { width: 68px; height: 68px; flex: none; display: block; margin: -6px 0; }
+body[data-mode="offline"] .mark { opacity: .75; }
 
 /* -- the tab strip --------------------------------------------------------- */
 .nav {
@@ -188,7 +188,10 @@ body[data-mode="offline"]   .seal .core   { filter: none; }
   transition: background .18s, color .18s;
 }
 .nav-tab:hover { color: var(--ink); }
-.nav-tab[aria-selected="true"] { background: color-mix(in srgb, var(--mode) 16%, var(--raised)); color: var(--ink); }
+.nav-tab[aria-selected="true"] {
+  background: color-mix(in srgb, var(--mode) 16%, var(--raised)); color: var(--ink);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mode) 40%, transparent), 0 0 14px -4px var(--mode);
+}
 .nav-tab .n {
   font: 600 .68rem/1 var(--mono);
   min-width: 1.2rem; padding: .22rem .38rem;
@@ -214,20 +217,46 @@ body[data-mode="offline"]   .seal .core   { filter: none; }
 
 /* -- cards ----------------------------------------------------------------- */
 .card {
-  background: var(--panel);
+  background:
+    radial-gradient(120% 70% at 50% -20%, color-mix(in srgb, var(--mode) 7%, transparent), transparent 70%),
+    color-mix(in srgb, var(--panel) 92%, transparent);
   border: 1px solid var(--line);
   border-radius: var(--r-panel);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow), inset 0 1px 0 color-mix(in srgb, var(--mode) 14%, transparent);
   overflow: hidden;
   min-width: 0;
+  position: relative;
 }
 .card-head {
   display: flex; align-items: center; gap: .75rem;
-  padding: .85rem 1.1rem .7rem;
+  padding: .85rem 1.1rem .8rem;
+  position: relative;
 }
-.card-head h2 { font-size: 1rem; }
+/* The gauge ring from inside the avatar's rim, unrolled: a tick every few
+   pixels and every sixth one long, fading out the way the far side does. */
+.card-head::after {
+  content: ""; position: absolute; left: 1.1rem; right: 1.1rem; bottom: 0; height: 6px;
+  background:
+    repeating-linear-gradient(90deg, color-mix(in srgb, var(--mode) 55%, transparent) 0 1px, transparent 1px 36px) bottom left / 100% 6px no-repeat,
+    repeating-linear-gradient(90deg, color-mix(in srgb, var(--mode) 30%, transparent) 0 1px, transparent 1px 6px) bottom left / 100% 3px no-repeat;
+  -webkit-mask-image: linear-gradient(90deg, #000, transparent 85%);
+  mask-image: linear-gradient(90deg, #000, transparent 85%);
+  pointer-events: none;
+}
+.card-head h2 {
+  font-size: .78rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--ink);
+  display: inline-flex; align-items: center; gap: .55rem;
+}
+/* A stud standing off the sphere: a node with its stub. */
+.card-head h2::before {
+  content: ""; width: 7px; height: 7px; border-radius: 50%; flex: none;
+  border: 1.5px solid var(--mode);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--mode) 70%, transparent), -9px 0 0 -2.5px color-mix(in srgb, var(--mode) 60%, transparent);
+  margin-left: 5px;
+}
 .card-note { font-size: .76rem; color: var(--faint); margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.card-body { padding: .2rem 1.1rem 1rem; }
+.card-body { padding: .6rem 1.1rem 1rem; }
 .card-body.flush { padding: 0; }
 .empty { color: var(--faint); font-size: .88rem; margin: .2rem 0 .4rem; }
 .empty code, .rows code { font: .82em/1 var(--mono); color: var(--dim); }
@@ -238,7 +267,8 @@ body[data-mode="offline"]   .seal .core   { filter: none; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .glance { padding: 1rem 1.1rem .9rem; display: grid; gap: .85rem; }
 .glance-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
-.clock-time { font: 300 2.6rem/1 var(--display); letter-spacing: -.02em; color: var(--ink); font-variant-numeric: tabular-nums; }
+.clock-time { font: 300 2.6rem/1 var(--display); letter-spacing: -.02em; color: var(--ink); font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 22px color-mix(in srgb, var(--mode) 35%, transparent); }
 .clock-ap { font: 500 .8rem/1 var(--display); color: var(--dim); margin-left: .3rem; letter-spacing: .04em; }
 .clock-date { margin-top: .35rem; font-size: .84rem; color: var(--dim); }
 .wx-now { display: grid; grid-template-columns: auto auto; column-gap: .6rem; align-items: center; justify-content: end; text-align: right; }
@@ -331,7 +361,7 @@ body[data-mode="offline"]   .seal .core   { filter: none; }
 .tick:hover { border-color: var(--mode); transform: scale(1.08); }
 .tick svg { width: 12px; height: 12px; fill: none; stroke: var(--bg); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round;
   stroke-dasharray: 20; stroke-dashoffset: 20; transition: stroke-dashoffset .28s ease .05s; }
-.todo-item[data-done="yes"] .tick { background: var(--mode); border-color: var(--mode); }
+.todo-item[data-done="yes"] .tick { background: var(--mode); border-color: var(--mode); box-shadow: 0 0 9px -1px var(--mode); }
 .todo-item[data-done="yes"] .tick svg { stroke-dashoffset: 0; }
 .todo-text { min-width: 0; flex: 1 1 auto; font-size: .93rem; line-height: 1.45; }
 /* The line is a background, cloned onto every line box, so a wrapped item is
@@ -390,17 +420,19 @@ body[data-mode="offline"]   .seal .core   { filter: none; }
 /* -- vitals ---------------------------------------------------------------- */
 .vitals { display: grid; gap: var(--gap); grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); }
 .vital {
-  background: var(--panel);
+  background:
+    radial-gradient(120% 80% at 50% -30%, color-mix(in srgb, var(--mode) 8%, transparent), transparent 70%),
+    color-mix(in srgb, var(--panel) 92%, transparent);
   border: 1px solid var(--line);
   border-radius: var(--r-panel);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow), inset 0 1px 0 color-mix(in srgb, var(--mode) 14%, transparent);
   padding: .85rem 1rem .7rem;
   display: grid; gap: .3rem;
   min-width: 0;
 }
 .vital-head { display: flex; align-items: center; gap: .5rem; }
-.vital-name { font: 600 .8rem/1 var(--display); color: var(--dim); display: inline-flex; align-items: center; gap: .45rem; flex: none; white-space: nowrap; }
-.vital-name::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--mode); }
+.vital-name { font: 600 .72rem/1 var(--display); letter-spacing: .12em; text-transform: uppercase; color: var(--dim); display: inline-flex; align-items: center; gap: .45rem; flex: none; white-space: nowrap; }
+.vital-name::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--mode); box-shadow: 0 0 7px var(--mode); }
 .vital[data-status="warn"] .vital-name::before { background: var(--amber); }
 .vital[data-status="bad"]  .vital-name::before { background: var(--rose); }
 .vital-badge {
@@ -417,8 +449,8 @@ body[data-mode="offline"]   .seal .core   { filter: none; }
 }
 .vital-value i { font-style: normal; font-size: .8rem; color: var(--dim); margin-left: .2em; font-weight: 500; letter-spacing: 0; }
 .spark { width: 100%; height: 34px; display: block; margin-top: .2rem; }
-.spark-line { fill: none; stroke: var(--mode); stroke-width: 1.6; stroke-linejoin: round; }
-.spark-area { fill: var(--mode); opacity: .12; stroke: none; }
+.spark-line { fill: none; stroke: var(--mode); stroke-width: 1.6; stroke-linejoin: round; filter: drop-shadow(0 0 3px var(--mode)); }
+.spark-area { fill: var(--mode); opacity: .14; stroke: none; }
 .vital[data-status="warn"] .spark-line, .vital[data-status="warn"] .spark-area { stroke: var(--amber); fill: var(--amber); }
 .vital[data-status="bad"]  .spark-line, .vital[data-status="bad"]  .spark-area { stroke: var(--rose);  fill: var(--rose); }
 
@@ -455,7 +487,7 @@ body[data-mode="offline"]   .seal .core   { filter: none; }
   color: var(--ink);
   transition: border-color .15s;
 }
-.field:focus { border-color: var(--mode); outline: none; }
+.field:focus { border-color: var(--mode); outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--mode) 16%, transparent); }
 .field::placeholder { color: var(--faint); }
 textarea.field { resize: vertical; min-height: 3.1rem; line-height: 1.5; }
 .btn {
@@ -469,7 +501,7 @@ textarea.field { resize: vertical; min-height: 3.1rem; line-height: 1.5; }
   transition: border-color .15s, color .15s, background .15s;
   white-space: nowrap;
 }
-.btn:hover:not(:disabled) { border-color: var(--mode); color: var(--bg); background: var(--mode); }
+.btn:hover:not(:disabled) { border-color: var(--mode); color: var(--bg); background: var(--mode); box-shadow: 0 0 16px -3px var(--mode); }
 .btn:disabled { opacity: .45; cursor: default; }
 .btn-primary { border-color: color-mix(in srgb, var(--mode) 55%, var(--line)); color: var(--mode); }
 .btn-quiet { background: transparent; }
@@ -495,7 +527,7 @@ textarea.field { resize: vertical; min-height: 3.1rem; line-height: 1.5; }
 .arg label { font: 500 .76rem/1 var(--display); color: var(--dim); }
 
 /* -- streams --------------------------------------------------------------- */
-.stream { max-height: 30rem; overflow-y: auto; padding: .2rem 1.1rem .9rem; font: .8rem/1.55 var(--mono); }
+.stream { max-height: 30rem; overflow-y: auto; padding: .6rem 1.1rem .9rem; font: .8rem/1.55 var(--mono); }
 .stream.tall { max-height: 64vh; }
 .entry { padding: .45rem 0; border-bottom: 1px solid var(--hair); }
 .entry:last-child { border-bottom: 0; }
@@ -514,6 +546,71 @@ textarea.field { resize: vertical; min-height: 3.1rem; line-height: 1.5; }
 .turn .who { font: 600 .7rem/1 var(--display); color: var(--faint); }
 .turn[data-who="assistant"] .who { color: var(--mode); }
 .turn p { margin: .15rem 0 0; font: .9rem/1.5 var(--ui); }
+/* -- config: a form drawn from the config's own types, and the raw file ---- */
+textarea.config-text { width: 100%; min-height: 62vh; font: .78rem/1.5 var(--mono); tab-size: 2; white-space: pre; overflow: auto; resize: vertical; }
+.config-bar { display: flex; flex-wrap: wrap; align-items: center; gap: .55rem; margin-top: .7rem; }
+.config-bar .hint { flex: 1 1 14rem; }
+.config-bar .hint[data-tone="bad"] { color: var(--rose); white-space: pre-wrap; }
+.config-bar .hint[data-tone="good"] { color: var(--green); }
+.config-bar.sticky { position: sticky; bottom: 0; z-index: 2; margin: .9rem -1.1rem -1rem; padding: .7rem 1.1rem;
+  background: color-mix(in srgb, var(--panel) 92%, transparent); border-top: 1px solid var(--line); backdrop-filter: blur(6px); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 2px; margin-left: .8rem; }
+.seg button { background: none; border: 0; padding: .25rem .8rem; border-radius: 999px; font-size: .74rem; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--dim); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: color-mix(in srgb, var(--mode) 18%, transparent); color: var(--mode); }
+.cfg { display: grid; grid-template-columns: 13.5rem minmax(0, 1fr); gap: 1.2rem; align-items: start; }
+.cfg-nav { position: sticky; top: .6rem; display: flex; flex-direction: column; gap: .15rem; max-height: 76vh; overflow-y: auto; }
+.cfg-nav .field { margin-bottom: .45rem; }
+.cfg-nav button { display: flex; align-items: center; gap: .4rem; text-align: left; background: none; border: 0; border-left: 2px solid transparent;
+  padding: .36rem .6rem; color: var(--dim); font-size: .84rem; cursor: pointer; border-radius: 0 6px 6px 0; }
+.cfg-nav button:hover { color: var(--ink); background: var(--hair); }
+.cfg-nav button[aria-current="true"] { color: var(--ink); border-left-color: var(--mode); background: color-mix(in srgb, var(--mode) 9%, transparent); }
+.cfg-nav .dot { margin-left: auto; min-width: 1.1rem; padding: 0 .3rem; border-radius: 999px; background: var(--amber); color: var(--bg);
+  font: 600 .66rem/1.1rem var(--mono); text-align: center; }
+.cfg-main { min-width: 0; }
+.cfg-title { margin: 0 0 .2rem; font-size: 1.02rem; color: var(--ink); font-weight: 500; }
+.cfg-doc { margin: 0 0 .8rem; color: var(--faint); font-size: .8rem; max-width: 70ch; }
+.cfg-group { margin: 1.1rem 0 .3rem; font: 600 .7rem/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+.cfg-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(12rem, 20rem); gap: .4rem 1.2rem; align-items: start;
+  padding: .7rem .2rem; border-top: 1px solid var(--hair); }
+.cfg-row[data-changed="true"] { box-shadow: inset 2px 0 0 var(--amber); padding-left: .7rem; }
+.cfg-label { display: flex; flex-wrap: wrap; align-items: baseline; gap: .15rem .5rem; color: var(--ink); font-size: .88rem; }
+.cfg-label code { font: .7rem var(--mono); color: var(--faint); }
+.cfg-help { margin: .25rem 0 0; color: var(--dim); font-size: .78rem; line-height: 1.45; max-width: 68ch;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
+.cfg-help[data-open="true"] { -webkit-line-clamp: unset; display: block; }
+.cfg-meta { margin-top: .3rem; font-size: .72rem; color: var(--faint); display: flex; gap: .7rem; flex-wrap: wrap; }
+.cfg-meta button { background: none; border: 0; padding: 0; color: var(--mode); font-size: .72rem; cursor: pointer; text-decoration: underline dotted; }
+.cfg-ctl { display: flex; gap: .4rem; align-items: center; min-width: 0; }
+.cfg-ctl .field { width: 100%; padding: .42rem .6rem; font-size: .84rem; }
+.cfg-ctl select.field { cursor: pointer; }
+.cfg-ctl .btn { padding: .38rem .6rem; font-size: .76rem; white-space: nowrap; }
+.switch { position: relative; display: inline-block; width: 2.6rem; height: 1.45rem; flex: none; cursor: pointer; }
+.switch input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.switch span { position: absolute; inset: 0; border-radius: 999px; background: var(--sunken); border: 1px solid var(--line); transition: background .15s, border-color .15s; }
+.switch span::after { content: ""; position: absolute; top: 2px; left: 2px; width: calc(1.45rem - 6px); height: calc(1.45rem - 6px);
+  border-radius: 50%; background: var(--faint); transition: transform .15s, background .15s; }
+.switch input:checked + span { background: color-mix(in srgb, var(--mode) 22%, transparent); border-color: var(--mode); }
+.switch input:checked + span::after { transform: translateX(1.15rem); background: var(--mode); box-shadow: 0 0 10px -1px var(--mode); }
+.switch input:focus-visible + span { outline: 2px solid var(--mode); outline-offset: 2px; }
+.switch-label { font-size: .8rem; color: var(--dim); }
+.tags { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; width: 100%; padding: .3rem; border: 1px solid var(--line);
+  border-radius: 8px; background: var(--sunken); min-height: 2.3rem; }
+.tags:focus-within { border-color: var(--mode); }
+.tag { display: inline-flex; align-items: center; gap: .25rem; padding: .12rem .2rem .12rem .5rem; border-radius: 999px;
+  background: color-mix(in srgb, var(--mode) 12%, transparent); border: 1px solid color-mix(in srgb, var(--mode) 30%, transparent);
+  font: .74rem var(--mono); color: var(--ink); max-width: 100%; overflow-wrap: anywhere; }
+.tag button { background: none; border: 0; color: var(--dim); cursor: pointer; padding: 0 .25rem; font-size: .9rem; line-height: 1; }
+.tag button:hover { color: var(--rose); }
+.tags input { flex: 1 1 6rem; min-width: 5rem; background: none; border: 0; outline: none; font-size: .8rem; padding: .2rem .3rem; color: var(--ink); }
+@media (max-width: 820px) {
+  .cfg { grid-template-columns: 1fr; }
+  .cfg-nav { position: static; flex-direction: row; flex-wrap: wrap; max-height: none; }
+  .cfg-nav .field { flex: 1 1 100%; }
+  .cfg-nav button { border-left: 0; border-bottom: 2px solid transparent; border-radius: 6px 6px 0 0; }
+  .cfg-nav button[aria-current="true"] { border-bottom-color: var(--mode); }
+  .cfg-row { grid-template-columns: 1fr; }
+}
 .loglines { margin: 0; white-space: pre-wrap; word-break: break-word; color: var(--dim); font-size: .75rem; }
 
 /* -- claude code sessions ------------------------------------------------- */
@@ -545,16 +642,221 @@ textarea.field { resize: vertical; min-height: 3.1rem; line-height: 1.5; }
 .sess-send .btn { flex: none; }
 .sess-send .hint { flex: none; align-self: center; }
 
+/* -- workshop -------------------------------------------------------------
+   Parts for the printer, and how each one came to be. The bench is a
+   hologram plinth: the part turns over a millimetre grid in the mode colour,
+   and when a new one lands it builds up from the plate the way the printer
+   will lay it down. */
+.bench {
+  position: relative; aspect-ratio: 16 / 10; min-height: 300px; max-height: 64vh; width: 100%;
+  background:
+    radial-gradient(60% 55% at 50% 58%, color-mix(in srgb, var(--mode) 10%, transparent), transparent 70%),
+    radial-gradient(120% 90% at 50% 120%, color-mix(in srgb, var(--wire) 14%, transparent), transparent 60%),
+    var(--sunken);
+  border-top: 1px solid var(--hair); border-bottom: 1px solid var(--hair);
+  overflow: hidden;
+}
+.bench canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+.bench canvas:active { cursor: grabbing; }
+.bench-hud { position: absolute; inset: 0; pointer-events: none; padding: .9rem 1.1rem; display: flex; flex-direction: column; justify-content: space-between; }
+.bench-top { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
+.bench-title h3 { font-size: 1.25rem; letter-spacing: .01em; text-shadow: 0 0 14px color-mix(in srgb, var(--mode) 40%, transparent); }
+.bench-title p { margin: .15rem 0 0; font-size: .8rem; color: var(--dim); max-width: 36rem; }
+.dims { display: grid; gap: .25rem; justify-items: end; font: .74rem/1 var(--mono); color: var(--dim); font-variant-numeric: tabular-nums; }
+.dims span { display: inline-flex; gap: .45rem; align-items: baseline; white-space: nowrap; }
+.dims b { font: 600 .64rem/1 var(--display); letter-spacing: .12em; color: var(--mode); }
+.bench-foot { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; }
+.bench-hint { font-size: .72rem; color: var(--faint); }
+.bench-flag { font: 600 .66rem/1 var(--display); letter-spacing: .1em; text-transform: uppercase; padding: .32rem .55rem; border-radius: 999px;
+  color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
+.bench-flag[data-tone="warn"] { color: var(--amber); background: color-mix(in srgb, var(--amber) 14%, transparent); }
+.bench-flag:empty { display: none; }
+
+/* While it works: the picture it drew, scanned by the mode colour. */
+.bench-wait { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+.bench-wait[hidden] { display: none; }
+.scan { position: relative; width: min(46%, 22rem); aspect-ratio: 1; border-radius: 12px; overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--mode) 30%, var(--line)); background: color-mix(in srgb, var(--raised) 70%, transparent); }
+.scan img { width: 100%; height: 100%; object-fit: cover; display: block; filter: grayscale(1) contrast(1.05) brightness(.92); opacity: .9; }
+.scan::before { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: repeating-linear-gradient(0deg, color-mix(in srgb, var(--mode) 16%, transparent) 0 1px, transparent 1px 7px);
+  mix-blend-mode: screen; }
+.scan::after { content: ""; position: absolute; left: 0; right: 0; height: 28%; top: -28%; z-index: 2;
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--mode) 45%, transparent) 85%, var(--mode));
+  box-shadow: 0 2px 18px var(--mode); animation: sweep 2.2s cubic-bezier(.45,.05,.55,.95) infinite; }
+@keyframes sweep { to { top: 100%; } }
+.scan.stopped::after { display: none; }
+.scan[data-views="front-back"], .scan[data-views="front-side-back"] { width: min(76%, 38rem); aspect-ratio: 3 / 2; }
+.scan.stopped { border-color: color-mix(in srgb, var(--rose) 45%, var(--line)); }
+.scan-empty { display: grid; place-items: center; width: 100%; height: 100%; }
+.scan-empty svg { width: 46%; fill: none; stroke: color-mix(in srgb, var(--mode) 70%, transparent); stroke-width: 1.2; stroke-dasharray: 4 5;
+  animation: turn 9s linear infinite; }
+@keyframes turn { to { transform: rotate(360deg); } }
+.bench-say { position: absolute; left: 0; right: 0; bottom: 1rem; text-align: center; font-size: .86rem; color: var(--ink); }
+.bench-say i { font-style: normal; color: var(--faint); font: .76rem/1 var(--mono); margin-left: .4rem; }
+.bench-say[data-tone="bad"] { color: var(--rose); padding: 0 1.5rem; }
+.bench-empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 2rem; color: var(--faint); font-size: .9rem; }
+.bench-empty[hidden] { display: none; }
+
+/* The Workshop: making it on the left, the part in the middle, how to slice
+   it on the right. The part stays in view while the columns beside it scroll. */
+.ws-cols { display: grid; gap: var(--gap); align-items: start;
+  grid-template-columns: minmax(270px, 1fr) minmax(0, 1.7fr) minmax(290px, 1.05fr);
+  grid-template-areas: "left bench right"; }
+.ws-bench { grid-area: bench; position: sticky; top: var(--gap); }
+@media (min-width: 1321px) { .ws-bench .bench { aspect-ratio: 1 / 1; max-height: 58vh; } }
+.ws-left { grid-area: left; }
+.ws-right { grid-area: right; }
+@media (max-width: 1320px) {
+  .ws-cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "bench bench" "left right"; }
+  .ws-bench { position: static; }
+}
+@media (max-width: 900px) {
+  .ws-cols { grid-template-columns: minmax(0, 1fr); grid-template-areas: "bench" "left" "right"; }
+}
+
+/* The pipeline: each step and how long it took. */
+.steps { list-style: none; margin: 0; padding: .85rem 1.1rem .2rem; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: .5rem; counter-reset: step; }
+.step { position: relative; display: grid; gap: .2rem; padding: .55rem .65rem .6rem; border-radius: var(--r-ctl);
+  border: 1px solid var(--hair); background: color-mix(in srgb, var(--raised) 45%, transparent); min-width: 0; }
+.step::before { counter-increment: step; content: counter(step, decimal-leading-zero);
+  font: 600 .62rem/1 var(--mono); color: var(--faint); letter-spacing: .08em; }
+.step b { font: 600 .8rem/1.2 var(--display); color: var(--dim); }
+.step span { font: .72rem/1.3 var(--ui); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.step span.t { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.step[data-state="done"] { border-color: color-mix(in srgb, var(--mode) 22%, var(--hair)); }
+.step[data-state="done"] b { color: var(--ink); }
+.step[data-state="done"]::before { color: var(--mode); }
+.step[data-state="now"] { border-color: var(--mode); box-shadow: 0 0 0 1px color-mix(in srgb, var(--mode) 35%, transparent), 0 0 22px -8px var(--mode); }
+.step[data-state="now"] b { color: var(--mode); }
+.step[data-state="now"]::after { content: ""; position: absolute; left: .65rem; right: .65rem; bottom: 0; height: 2px; border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--mode), transparent); background-size: 50% 100%; background-repeat: no-repeat;
+  animation: slide 1.4s linear infinite; }
+@keyframes slide { from { background-position: -50% 0; } to { background-position: 150% 0; } }
+.step[data-state="bad"] { border-color: color-mix(in srgb, var(--rose) 55%, var(--hair)); }
+.step[data-state="bad"] b, .step[data-state="bad"]::before { color: var(--rose); }
+.step[data-state="skip"] { opacity: .55; }
+.bench-actions { padding: .75rem 1.1rem 1rem; }
+.bench-actions a.btn { text-decoration: none; }
+
+/* Adjusting a part: one change, a new version. */
+.adjust { padding: 0 1.1rem 1rem; display: grid; gap: .4rem; }
+.adjust[hidden] { display: none; }
+.adjust-row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap;
+  padding: .45rem .45rem .45rem .7rem; border: 1px solid color-mix(in srgb, var(--mode) 28%, var(--hair)); border-radius: var(--r-ctl);
+  background: color-mix(in srgb, var(--mode) 5%, transparent); }
+.adjust-row:focus-within { border-color: var(--mode); box-shadow: 0 0 0 3px color-mix(in srgb, var(--mode) 14%, transparent); }
+.adjust-row > .field { flex: 1 1 15rem; border-color: transparent; background: transparent; box-shadow: none; padding-left: .2rem; }
+.adjust-row > .field:focus { box-shadow: none; border-color: transparent; }
+.adjust-tag { font: 600 .66rem/1 var(--display); letter-spacing: .14em; text-transform: uppercase; color: var(--mode); }
+.adjust .hint[data-tone="bad"] { color: var(--rose); }
+.inline { display: inline-flex; gap: .4rem; align-items: center; font-size: .8rem; color: var(--dim); }
+.inline[hidden] { display: none; }
+.inline .field { width: 4.6rem; padding: .4rem .5rem; }
+.lineage { margin: 0 0 .7rem; font-size: .84rem; color: var(--dim); }
+.lineage .link { display: inline; color: var(--mode); }
+.lineage q { color: var(--ink); }
+.ref-pair { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+.ref-pair figure { margin: 0; display: grid; gap: .3rem; }
+.ref-pair figcaption { font: 600 .62rem/1 var(--display); letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+.ref-pair figure:last-child figcaption { color: var(--mode); }
+.ref-pair .ref-pic { aspect-ratio: 1; }
+.ref-pair[data-views="front-back"], .ref-pair[data-views="front-side-back"] { grid-template-columns: 1fr; }
+.ref-pair[data-views="front-back"] .ref-pic, .ref-pair[data-views="front-side-back"] .ref-pic { aspect-ratio: 3 / 2; }
+.ref-code .add { display: block; margin: 0 -.8rem; padding: 0 .8rem; color: var(--ink);
+  background: color-mix(in srgb, var(--mode) 14%, transparent); box-shadow: inset 2px 0 0 var(--mode); }
+
+/* The sculpt form. */
+.sculpt { display: grid; gap: .6rem; }
+.sculpt textarea { resize: vertical; min-height: 4.6rem; line-height: 1.45; }
+.pick { display: flex; gap: .6rem; align-items: center; padding: .45rem; border: 1px dashed var(--line); border-radius: var(--r-ctl); }
+.pick[hidden] { display: none; }
+.pick img { width: 52px; height: 52px; object-fit: cover; border-radius: 6px; flex: none; }
+.pick span { font-size: .8rem; color: var(--dim); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.sculpt[data-drop="yes"] { outline: 2px dashed var(--mode); outline-offset: 4px; border-radius: var(--r-ctl); }
+/* The questions asked before sculpting a short request. */
+.ask { display: grid; gap: .8rem; padding: .75rem .8rem .8rem; border: 1px solid color-mix(in srgb, var(--mode) 28%, var(--hair));
+  border-radius: var(--r-ctl); background: color-mix(in srgb, var(--mode) 5%, transparent); }
+.ask[hidden] { display: none; }
+.ask-so-far { margin: 0; font-size: .84rem; line-height: 1.45; color: var(--dim); }
+.ask-so-far .adjust-tag { margin-right: .45rem; }
+.ask-so-far q { color: var(--ink); }
+.ask-q { display: grid; gap: .4rem; margin: 0; padding: 0; border: 0; min-width: 0; }
+.ask-q legend { padding: 0; margin-bottom: .4rem; font-size: .86rem; color: var(--ink); }
+.ask-opts { display: flex; flex-wrap: wrap; gap: .35rem; }
+.ask-opts button { border: 1px solid var(--line); background: none; color: var(--dim); font: 500 .76rem/1.1 var(--display);
+  padding: .4rem .7rem; border-radius: 999px; cursor: pointer; max-width: 100%; }
+.ask-opts button:hover { color: var(--ink); border-color: color-mix(in srgb, var(--mode) 45%, var(--line)); }
+.ask-opts button[aria-pressed="true"] { background: color-mix(in srgb, var(--mode) 18%, transparent); color: var(--ink); border-color: var(--mode); }
+.ask-q .field { padding: .4rem .55rem; font-size: .82rem; }
+.ask-none { margin: 0; font-size: .82rem; color: var(--faint); }
+
+/* How it was made: the picture, the words, the numbers. */
+.ref-pic { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: contain; border-radius: 10px; border: 1px solid var(--line); background: #fff; }
+.ref-quote { margin: .7rem 0 .2rem; padding-left: .8rem; border-left: 2px solid var(--mode); font-size: .92rem; color: var(--ink); }
+.ref-facts { list-style: none; margin: .6rem 0 0; padding: 0; display: grid; grid-template-columns: auto 1fr; gap: .3rem .9rem; font-size: .8rem; }
+.ref-facts dt { color: var(--faint); }
+.ref-facts dd { margin: 0; color: var(--ink); font-family: var(--mono); font-size: .76rem; font-variant-numeric: tabular-nums; }
+.ref-code { margin: 0; max-height: 22rem; overflow: auto; padding: .7rem .8rem; background: var(--sunken); border: 1px solid var(--hair);
+  border-radius: var(--r-ctl); font: .76rem/1.5 var(--mono); color: var(--dim); white-space: pre; }
+
+/* Slicer settings for the part: changes from the printer's profile, each with its reason. */
+.slice-sum { margin: 0 0 .8rem; font-size: .9rem; line-height: 1.45; color: var(--ink); }
+.slice-notes { list-style: none; margin: 0 0 .9rem; padding: 0; display: grid; gap: .4rem; }
+.slice-notes li { padding: .45rem .65rem; font-size: .82rem; line-height: 1.4; color: var(--ink); border-radius: var(--r-ctl);
+  border-left: 2px solid var(--amber); background: color-mix(in srgb, var(--amber) 9%, transparent); }
+.slice-group { margin: .9rem 0 .4rem; }
+.slice-group:first-of-type { margin-top: 0; }
+.slice-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.slice-row { display: grid; grid-template-columns: minmax(7.5rem, 38%) 1fr; gap: .1rem .8rem; font-size: .8rem; }
+.slice-row b { font-weight: 400; color: var(--dim); }
+.slice-row span { color: var(--ink); font-family: var(--mono); font-size: .76rem; overflow-wrap: anywhere; }
+.slice-row small { grid-column: 2; color: var(--faint); font-size: .74rem; line-height: 1.35; }
+@media (max-width: 520px) { .slice-row { grid-template-columns: 1fr; } .slice-row small { grid-column: 1; } }
+.slice-foot { margin: .9rem 0 0; font-size: .74rem; color: var(--faint); }
+
+/* The collection. */
+#shelf-note { margin-left: 0; }
+.shelf-filter { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--hair); border-radius: 999px; margin-left: auto; }
+.shelf-filter button { border: 0; background: none; color: var(--faint); font: 500 .72rem/1 var(--display); padding: .32rem .6rem; border-radius: 999px; cursor: pointer; }
+.shelf-filter button[aria-pressed="true"] { background: color-mix(in srgb, var(--mode) 18%, transparent); color: var(--ink); }
+.shelf { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); padding: .8rem 1.1rem 1.1rem; }
+.tile { all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-rows: auto auto; border-radius: 11px; overflow: hidden;
+  border: 1px solid var(--hair); background: color-mix(in srgb, var(--raised) 55%, transparent); transition: border-color .15s, transform .15s, box-shadow .15s; min-width: 0; }
+.tile:hover { border-color: color-mix(in srgb, var(--mode) 45%, var(--line)); transform: translateY(-2px); }
+.tile:focus-visible { outline: 2px solid var(--mode); outline-offset: 2px; }
+.tile[aria-pressed="true"] { border-color: var(--mode); box-shadow: 0 0 0 1px var(--mode), 0 0 24px -8px var(--mode); }
+.tile-view { position: relative; aspect-ratio: 1; display: grid; place-items: center; overflow: hidden;
+  background: radial-gradient(70% 60% at 50% 60%, color-mix(in srgb, var(--mode) 9%, transparent), transparent 72%), var(--sunken); }
+.tile-view img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.tile-view img.photo { object-fit: cover; filter: grayscale(1) brightness(.85); opacity: .75; }
+.tile-view .ghost { width: 40%; fill: none; stroke: var(--faint); stroke-width: 1.2; stroke-dasharray: 3 4; }
+.tile[data-working="yes"] .tile-view::after { content: ""; position: absolute; left: 0; right: 0; height: 30%; top: -30%;
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--mode) 40%, transparent)); animation: sweep 2.2s ease-in-out infinite; }
+.tile-kind { position: absolute; left: .45rem; top: .45rem; font: 600 .58rem/1 var(--display); letter-spacing: .12em; text-transform: uppercase;
+  color: var(--dim); background: color-mix(in srgb, var(--bg) 70%, transparent); padding: .25rem .4rem; border-radius: 999px; }
+.tile[data-working="yes"] .tile-kind { color: var(--bg); background: var(--mode); }
+.tile[data-state="failed"] .tile-kind { color: var(--bg); background: var(--rose); }
+.tile-meta { display: grid; gap: .1rem; padding: .5rem .6rem .55rem; min-width: 0; }
+.tile-meta b { font: 600 .84rem/1.25 var(--display); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile-meta i { font: normal .7rem/1.2 var(--mono); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .steps { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .bench { aspect-ratio: 1; }
+  .shelf { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); padding: .6rem .75rem .9rem; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 </style>
 </head>
 <body data-mode="offline">
+<canvas class="backdrop" id="ghost" aria-hidden="true"></canvas>
 <div class="shell">
 
   <header class="head">
-    <svg class="seal" viewBox="0 0 100 100" aria-hidden="true"><circle class="rim" cx="50" cy="50" r="47"/><g class="ticks"><path d="M50 3v5M50 92v5M3 50h5M92 50h5"/></g><g class="blades"><path class="near" d="M69.0 51.0A19 19 0 0 1 64.1 62.7L75.2 81.1A40 40 0 0 0 89.1 58.3Z"/><path class="near" d="M62.7 64.1A19 19 0 0 1 51.0 69.0L45.8 89.8A40 40 0 0 0 71.8 83.5Z"/><path class="near" d="M49.0 69.0A19 19 0 0 1 37.3 64.1L18.9 75.2A40 40 0 0 0 41.7 89.1Z"/><path class="near" d="M35.9 62.7A19 19 0 0 1 31.0 51.0L10.2 45.8A40 40 0 0 0 16.5 71.8Z"/><path class="far" d="M31.0 49.0A19 19 0 0 1 35.9 37.3L24.8 18.9A40 40 0 0 0 10.9 41.7Z"/><path class="far" d="M37.3 35.9A19 19 0 0 1 49.0 31.0L54.2 10.2A40 40 0 0 0 28.2 16.5Z"/><path class="far" d="M51.0 31.0A19 19 0 0 1 62.7 35.9L81.1 24.8A40 40 0 0 0 58.3 10.9Z"/><path class="far" d="M64.1 37.3A19 19 0 0 1 69.0 49.0L89.8 54.2A40 40 0 0 0 83.5 28.2Z"/></g><circle class="pupil" cx="50" cy="50" r="9"/><circle class="core" cx="50" cy="50" r="3.5"/></svg>
+    <canvas class="mark" id="mark" width="136" height="136" role="img" aria-label="The assistant's avatar"></canvas>
     <div class="identity">
       <h1 id="assistant-name">Console</h1>
       <p class="motto" id="assistant-motto" hidden></p>
@@ -567,9 +869,11 @@ textarea.field { resize: vertical; min-height: 3.1rem; line-height: 1.5; }
     <button class="nav-tab" role="tab" id="tab-today" aria-selected="true" aria-controls="view-today">Today <span class="n" id="n-today"></span></button>
     <button class="nav-tab" role="tab" id="tab-machine" aria-selected="false" aria-controls="view-machine">Machine <span class="n" id="n-machine"></span></button>
     <button class="nav-tab" role="tab" id="tab-sessions" aria-selected="false" aria-controls="view-sessions">Claude Code <span class="n" id="n-sessions"></span></button>
+    <button class="nav-tab" role="tab" id="tab-workshop" aria-selected="false" aria-controls="view-workshop">Workshop <span class="n" id="n-workshop"></span></button>
     <button class="nav-tab" role="tab" id="tab-talk" aria-selected="false" aria-controls="view-talk">Talk</button>
     <button class="nav-tab" role="tab" id="tab-commands" aria-selected="false" aria-controls="view-commands">Commands</button>
     <button class="nav-tab" role="tab" id="tab-log" aria-selected="false" aria-controls="view-log">Log</button>
+    <button class="nav-tab" role="tab" id="tab-config" aria-selected="false" aria-controls="view-config">Config <span class="n" id="n-config"></span></button>
     <span class="nav-tail" id="stream-note"></span>
   </nav>
 
@@ -677,6 +981,110 @@ textarea.field { resize: vertical; min-height: 3.1rem; line-height: 1.5; }
     </section>
   </div>
 
+  <!-- Workshop -->
+  <div class="view" id="view-workshop" role="tabpanel" aria-labelledby="tab-workshop" hidden>
+    <div class="ws-cols">
+      <section class="card ws-bench" aria-labelledby="bench-label">
+        <div class="card-head">
+          <h2 id="bench-label">Workbench</h2>
+          <span class="card-note" id="bench-note"></span>
+        </div>
+        <div class="bench" id="bench">
+          <canvas id="bench-canvas" role="img" aria-label="The selected part in 3D. Drag to turn it, scroll to zoom, double-click to reset."></canvas>
+          <div class="bench-wait" id="bench-wait" hidden>
+            <div class="scan" id="bench-scan"></div>
+            <p class="bench-say" id="bench-say" aria-live="polite"></p>
+          </div>
+          <div class="bench-empty" id="bench-empty">Nothing made yet. Describe something on the right, or ask out loud: "sculpt me an owl".</div>
+          <div class="bench-hud">
+            <div class="bench-top">
+              <div class="bench-title"><h3 id="bench-title"></h3><p id="bench-sub"></p></div>
+              <div class="dims" id="bench-dims"></div>
+            </div>
+            <div class="bench-foot">
+              <span class="bench-hint" id="bench-hint"></span>
+              <span class="bench-flag" id="bench-flag"></span>
+            </div>
+          </div>
+        </div>
+        <ol class="steps" id="steps" aria-label="How it is made"></ol>
+        <div class="row bench-actions" id="bench-actions"></div>
+        <form class="adjust" id="adjust-form" hidden>
+          <div class="adjust-row">
+            <span class="adjust-tag">Adjust</span>
+            <input class="field" id="adjust-change" maxlength="300" autocomplete="off" aria-label="What to change">
+            <label class="inline" id="adjust-height-wrap">Height <input class="field" type="number" id="adjust-height" min="5" max="256" step="1"> mm</label>
+            <button class="btn btn-primary" type="submit" id="adjust-go">Adjust</button>
+          </div>
+          <p class="hint" id="adjust-hint"></p>
+        </form>
+      </section>
+
+      <div class="stack ws-left">
+        <section class="card" aria-labelledby="sculpt-label">
+          <div class="card-head">
+            <h2 id="sculpt-label">Sculpt something</h2>
+            <span class="card-note" id="sculpt-note"></span>
+          </div>
+          <form class="card-body sculpt" id="sculpt-form">
+            <textarea class="field" id="sculpt-prompt" maxlength="600" placeholder="An owl - I'll ask about the details" aria-label="What to sculpt"></textarea>
+            <div class="ask" id="sculpt-ask" hidden>
+              <p class="ask-so-far"><span class="adjust-tag">So far</span><q id="sculpt-so-far"></q></p>
+              <div id="sculpt-questions"></div>
+              <div class="row">
+                <button class="btn btn-quiet" type="button" id="sculpt-more">More questions</button>
+                <button class="btn btn-quiet" type="button" id="sculpt-skip">Skip - sculpt my words</button>
+              </div>
+            </div>
+            <div class="pick" id="sculpt-pick" hidden>
+              <img id="sculpt-pick-img" alt="">
+              <span id="sculpt-pick-name"></span>
+              <button class="btn btn-quiet" type="button" id="sculpt-pick-clear">Remove</button>
+            </div>
+            <input type="file" id="sculpt-file" accept=".png,.jpg,.jpeg,.webp" hidden>
+            <div class="row">
+              <label class="inline">Height <input class="field" type="number" id="sculpt-height" min="5" max="256" step="1" value="60"> mm</label>
+              <button class="btn btn-quiet" type="button" id="sculpt-pick-btn">Use a picture&hellip;</button>
+              <button class="btn btn-primary row-end" type="submit" id="sculpt-go">Sculpt</button>
+            </div>
+            <p class="hint">A short request gets a few questions first - style, pose, the details that matter - so it comes out as you pictured it. OpenAI draws it as a clay model from the front, the side and behind, Hunyuan3D-2mv turns the three views into a mesh, and it is cleaned, stood up and scaled to print. Parts with real measurements come from asking out loud: "make me a cable clip for a 6&nbsp;mm cable".</p>
+          </form>
+        </section>
+
+        <section class="card" aria-labelledby="ref-label">
+          <div class="card-head">
+            <h2 id="ref-label">How it was made</h2>
+            <span class="card-note" id="ref-note"></span>
+          </div>
+          <div class="card-body" id="ref"><p class="empty">Pick a part to see where it came from.</p></div>
+        </section>
+      </div>
+
+      <div class="stack ws-right">
+        <section class="card" aria-labelledby="slice-label">
+          <div class="card-head">
+            <h2 id="slice-label">Slicer settings</h2>
+            <span class="card-note" id="slice-note"></span>
+          </div>
+          <div class="card-body" id="slice"><p class="empty">Pick a part to see how to slice it.</p></div>
+        </section>
+      </div>
+    </div>
+
+    <section class="card" aria-labelledby="shelf-label">
+      <div class="card-head">
+        <h2 id="shelf-label">Collection</h2>
+        <span class="card-note" id="shelf-note"></span>
+        <div class="shelf-filter" role="group" aria-label="Show">
+          <button type="button" data-filter="all" aria-pressed="true">All</button>
+          <button type="button" data-filter="sculpt" aria-pressed="false">Sculpted</button>
+          <button type="button" data-filter="make" aria-pressed="false">Designed</button>
+        </div>
+      </div>
+      <div class="shelf" id="shelf"><p class="empty">Loading&hellip;</p></div>
+    </section>
+  </div>
+
   <!-- Talk -->
   <div class="view" id="view-talk" role="tabpanel" aria-labelledby="tab-talk" hidden>
     <div class="cols cols-even">
@@ -777,6 +1185,47 @@ textarea.field { resize: vertical; min-height: 3.1rem; line-height: 1.5; }
     </section>
   </div>
 
+  <!-- Config -->
+  <div class="view" id="view-config" role="tabpanel" aria-labelledby="tab-config" hidden>
+    <section class="card" aria-labelledby="config-label">
+      <div class="card-head">
+        <h2 id="config-label">Config</h2>
+        <div class="seg" role="group" aria-label="How to edit">
+          <button id="cfg-mode-form" aria-pressed="true">Settings</button>
+          <button id="cfg-mode-yaml" aria-pressed="false">YAML</button>
+        </div>
+        <span class="card-note" id="config-path"></span>
+      </div>
+      <div class="card-body">
+        <div id="cfg-form">
+          <div class="cfg">
+            <nav class="cfg-nav" id="cfg-nav" aria-label="Config sections">
+              <input class="field" type="search" id="cfg-search" placeholder="Find a setting&hellip;" autocomplete="off">
+            </nav>
+            <div class="cfg-main" id="cfg-main"><p class="empty">Loading&hellip;</p></div>
+          </div>
+          <div class="config-bar sticky">
+            <button class="btn btn-primary" id="cfg-save" disabled>Save</button>
+            <button class="btn" id="cfg-save-restart" disabled>Save &amp; restart</button>
+            <button class="btn btn-quiet" id="cfg-discard" disabled>Discard</button>
+            <span class="hint" id="cfg-status" role="status">Changes are checked the way the agent loads them before anything is written; the old file is kept as <code>.bak</code>.</span>
+          </div>
+        </div>
+        <div id="cfg-yaml" hidden>
+          <label class="hint" for="config-text">The file itself, comments and secrets included. For what the form cannot show: alert rules, profiles, maps. Ctrl+S saves.</label>
+          <textarea id="config-text" class="field config-text" spellcheck="false" autocomplete="off"
+                    autocapitalize="off" wrap="off" style="margin-top:.5rem" disabled>loading&hellip;</textarea>
+          <div class="config-bar">
+            <button class="btn btn-primary" id="config-save" disabled>Save</button>
+            <button class="btn" id="config-restart" disabled>Save &amp; restart</button>
+            <button class="btn btn-quiet" id="config-revert">Reload</button>
+            <span class="hint" id="config-status" role="status"></span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
 </div>
 
 <script>
@@ -846,30 +1295,466 @@ function escapeHtml(text) {
 
 /* -- views ----------------------------------------------------------------- */
 
-const VIEWS = ["today", "machine", "sessions", "talk", "commands", "log"];
+const VIEWS = ["today", "machine", "sessions", "workshop", "talk", "commands", "log", "config"];
 // The hash names a view (#machine) so a link can open one directly; otherwise
 // the one that was open last time.
-const hashView = location.hash.replace(/^#/, "");
+// "#config:game" also names a section of the Config view.
+const [hashView, hashSub] = location.hash.replace(/^#/, "").split(":");
 let currentView = VIEWS.includes(hashView) ? hashView
   : VIEWS.includes(PREFS.get("view", "today")) ? PREFS.get("view", "today") : "today";
 
 function showView(name) {
   currentView = name;
   PREFS.set("view", name);
-  if (location.hash.replace(/^#/, "") !== name) history.replaceState(null, "", "#" + name);
+  if (location.hash.replace(/^#/, "").split(":")[0] !== name) history.replaceState(null, "", "#" + name);
   for (const view of VIEWS) {
     $("tab-" + view).setAttribute("aria-selected", String(view === name));
     $("view-" + view).hidden = view !== name;
   }
   if (name === "log") refreshLog();
+  if (name === "config") setConfigMode(PREFS.get("cfgMode", "form") === "yaml" ? "yaml" : "form");
   if (name === "talk") { const pane = $("pane-talk"); pane.scrollTop = pane.scrollHeight; }
+  if (name === "workshop") refreshWorkshop();
+  BENCH.viewer && BENCH.viewer.setActive(name === "workshop");
 }
 for (const view of VIEWS) $("tab-" + view).addEventListener("click", () => showView(view));
 document.addEventListener("keydown", (event) => {
-  // Alt+1..6 switches views; nothing else on the page uses Alt.
+  // Alt+1..8 switches views; nothing else on the page uses Alt.
   if (!event.altKey || event.ctrlKey || event.metaKey) return;
   const index = Number(event.key) - 1;
   if (VIEWS[index]) { showView(VIEWS[index]); event.preventDefault(); }
+});
+
+/* -- config ------------------------------------------------------------------ */
+
+const CONFIG = { loaded: false, mtime: null, saved: "", busy: false };
+
+function configDirty() { return CONFIG.loaded && $("config-text").value !== CONFIG.saved; }
+
+function configStatus(text, tone) {
+  const node = $("config-status");
+  node.textContent = text;
+  if (tone) node.dataset.tone = tone; else delete node.dataset.tone;
+}
+
+function configControls() {
+  const dirty = configDirty();
+  $("config-save").disabled = CONFIG.busy || !dirty;
+  $("config-restart").disabled = CONFIG.busy || !CONFIG.loaded;
+  $("config-revert").disabled = CONFIG.busy;
+  const any = dirty || (typeof FORM !== "undefined" && FORM.edits.size > 0);
+  badge("n-config", any ? "edited" : "", any ? "warn" : "");
+}
+
+async function loadConfig(force) {
+  if (configDirty() && !force && !confirm("Throw away your unsaved changes and reload the file?")) return;
+  CONFIG.busy = true; configControls();
+  const reply = await api("/api/config").catch((e) => ({ ok: false, error: String(e) }));
+  CONFIG.busy = false;
+  if (!reply.ok) {
+    configStatus(reply.error || "could not load the config", "bad");
+    configControls();
+    return;
+  }
+  const area = $("config-text");
+  CONFIG.loaded = true;
+  CONFIG.mtime = reply.mtime;
+  CONFIG.saved = reply.text;
+  area.value = reply.text;
+  area.disabled = false;
+  $("config-path").textContent = reply.path;
+  configStatus("loaded " + clock());
+  configControls();
+}
+
+async function saveConfig(restart) {
+  if (CONFIG.busy || !CONFIG.loaded) return;
+  if (!restart && !configDirty()) return;
+  if (restart && !confirm("Save, then restart the agent, face, voice and game watcher? The console drops out for a few seconds.")) return;
+  CONFIG.busy = true; configControls();
+  configStatus("checking\u2026");
+  const text = $("config-text").value;
+  const reply = await api("/api/config", { text, mtime: CONFIG.mtime, restart: !!restart })
+    .catch((e) => ({ ok: false, error: String(e) }));
+  CONFIG.busy = false;
+  if (!reply.ok) {
+    configStatus("not saved: " + (reply.error || "unknown error"), "bad");
+    configControls();
+    return;
+  }
+  CONFIG.mtime = reply.mtime;
+  CONFIG.saved = reply.text;
+  FORM.loaded = false;
+  // Only replace what is in the box if nothing was typed while saving.
+  if ($("config-text").value === text) $("config-text").value = reply.text;
+  if (reply.restarting) configStatus("saved " + clock() + " \u2014 restarting; this page reconnects on its own", "good");
+  else if (reply.restart_error) configStatus("saved, but the restart failed: " + reply.restart_error, "bad");
+  else configStatus("saved " + clock() + " \u2014 restart for most changes to take effect", "good");
+  configControls();
+}
+
+$("config-text").addEventListener("input", configControls);
+$("config-text").addEventListener("keydown", (event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+    event.preventDefault();
+    saveConfig(false);
+  } else if (event.key === "Tab" && !event.shiftKey && !event.ctrlKey && !event.altKey) {
+    // YAML indents with spaces; the Tab key should not leave the box.
+    event.preventDefault();
+    const area = event.target;
+    area.setRangeText("  ", area.selectionStart, area.selectionEnd, "end");
+    configControls();
+  }
+});
+$("config-save").addEventListener("click", () => saveConfig(false));
+$("config-restart").addEventListener("click", () => saveConfig(true));
+$("config-revert").addEventListener("click", () => loadConfig(false));
+window.addEventListener("beforeunload", (event) => {
+  if (configDirty() || formDirty()) { event.preventDefault(); event.returnValue = ""; }
+});
+
+/* -- config: the settings form -------------------------------------------- */
+
+const FORM = { loaded: false, sections: [], values: {}, fields: new Map(), mtime: null,
+               edits: new Map(), section: (hashView === "config" && hashSub) || PREFS.get("cfgSection", "general"),
+               query: "", busy: false };
+
+function fieldDefault(field) { return field.default === undefined ? null : field.default; }
+function inFile(path) { return Object.prototype.hasOwnProperty.call(FORM.values, path); }
+function baseValue(field) { return inFile(field.path) ? FORM.values[field.path] : fieldDefault(field); }
+function currentValue(field) {
+  if (!FORM.edits.has(field.path)) return baseValue(field);
+  const edit = FORM.edits.get(field.path);
+  return edit === null ? fieldDefault(field) : edit;
+}
+function same(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+
+function setEdit(field, value) {
+  // value null = take it out of the file, so the default applies again.
+  if (value === null ? !inFile(field.path) : (inFile(field.path) ? same(value, FORM.values[field.path])
+                                                               : same(value, fieldDefault(field)))) {
+    FORM.edits.delete(field.path);
+  } else {
+    FORM.edits.set(field.path, value);
+  }
+  formControls();
+  // Only on an edit, so a refusal from the last save stays readable until then.
+  const n = FORM.edits.size;
+  formStatus(n ? n + " unsaved change" + (n === 1 ? "" : "s") : "no unsaved changes");
+}
+
+function formDirty() { return FORM.edits.size > 0; }
+
+function formControls() {
+  const n = FORM.edits.size;
+  $("cfg-save").disabled = FORM.busy || !n;
+  $("cfg-save-restart").disabled = FORM.busy || !FORM.loaded;
+  $("cfg-discard").disabled = FORM.busy || !n;
+  const dirty = n > 0 || configDirty();
+  badge("n-config", dirty ? "edited" : "", dirty ? "warn" : "");
+  for (const node of document.querySelectorAll(".cfg-nav button[data-section]")) {
+    const key = node.dataset.section;
+    const count = [...FORM.edits.keys()].filter((p) => FORM.fields.get(p)?.section === key).length;
+    const dot = node.querySelector(".dot");
+    if (count) { dot.textContent = count; dot.hidden = false; } else dot.hidden = true;
+  }
+}
+
+function formStatus(text, tone) {
+  const node = $("cfg-status");
+  node.textContent = text;
+  if (tone) node.dataset.tone = tone; else delete node.dataset.tone;
+}
+
+function human(key) { return key.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()); }
+function shown(value) {
+  if (value === null || value === undefined) return "none";
+  if (value === "") return "blank";
+  if (Array.isArray(value)) return value.length ? value.join(", ") : "empty";
+  if (typeof value === "boolean") return value ? "on" : "off";
+  return String(value);
+}
+
+function el(tag, props, ...children) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) {
+    if (k === "class") node.className = v;
+    else if (k === "text") node.textContent = v;
+    else if (k.startsWith("on")) node.addEventListener(k.slice(2), v);
+    else if (v !== undefined && v !== null && v !== false) node.setAttribute(k, v === true ? "" : v);
+  }
+  for (const child of children) if (child) node.append(child);
+  return node;
+}
+
+function control(field, row) {
+  const value = currentValue(field);
+  const id = "cfg-" + field.path.replace(/[^a-z0-9]/gi, "-");
+  const touched = () => refreshRow(field, row);
+  if (field.type === "bool") {
+    const input = el("input", { type: "checkbox", id, role: "switch" });
+    input.checked = !!value;
+    const label = el("span", { class: "switch-label", text: value ? "on" : "off" });
+    input.addEventListener("change", () => { label.textContent = input.checked ? "on" : "off"; setEdit(field, input.checked); touched(); });
+    return el("div", { class: "cfg-ctl" }, el("label", { class: "switch" }, input, el("span")), label);
+  }
+  if (field.type === "int" || field.type === "float") {
+    const input = el("input", { class: "field", type: "number", id, step: field.type === "int" ? "1" : "any",
+                                placeholder: field.nullable ? "none" : "" });
+    input.value = value === null || value === undefined ? "" : String(value);
+    input.addEventListener("input", () => {
+      const text = input.value.trim();
+      if (text === "") { setEdit(field, field.nullable ? null : fieldDefault(field)); }
+      else if (!Number.isNaN(Number(text))) setEdit(field, Number(text));
+      touched();
+    });
+    return el("div", { class: "cfg-ctl" }, input);
+  }
+  if (field.type === "list") {
+    const box = el("div", { class: "tags" });
+    const input = el("input", { id, placeholder: "add…", autocomplete: "off" });
+    const items = [...(value || [])];
+    const draw = () => {
+      for (const tag of [...box.querySelectorAll(".tag")]) tag.remove();
+      items.forEach((item, i) => box.insertBefore(
+        el("span", { class: "tag" }, document.createTextNode(item),
+           el("button", { type: "button", "aria-label": "remove " + item,
+                          onclick: () => { items.splice(i, 1); draw(); setEdit(field, [...items]); touched(); } }, document.createTextNode("×"))),
+        input));
+    };
+    const add = () => {
+      const text = input.value.trim().replace(/,$/, "").trim();
+      if (text && !items.includes(text)) { items.push(text); draw(); setEdit(field, [...items]); touched(); }
+      input.value = "";
+    };
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === ",") { event.preventDefault(); add(); }
+      else if (event.key === "Backspace" && !input.value && items.length) { items.pop(); draw(); setEdit(field, [...items]); touched(); }
+    });
+    input.addEventListener("blur", add);
+    box.append(input);
+    draw();
+    box.addEventListener("click", (event) => { if (event.target === box) input.focus(); });
+    return el("div", { class: "cfg-ctl" }, box);
+  }
+  if (field.type === "yaml") {
+    return el("div", { class: "cfg-ctl" },
+      el("button", { class: "btn", type: "button", onclick: () => openYamlAt(field.path) }, document.createTextNode("Edit in YAML")));
+  }
+  // Text: a picker when the values are known, a password box for secrets.
+  if (field.choices) {
+    const OTHER = "__other__";
+    const select = el("select", { class: "field", id });
+    const options = [...field.choices];
+    const custom = value !== null && value !== undefined && !options.includes(value);
+    if (custom && !field.open) options.push(value);
+    for (const choice of options) {
+      const label = choice === "" ? "(blank)" : choice;
+      const option = el("option", { value: choice, text: label + (choice === fieldDefault(field) ? "  · default" : "") });
+      if (choice === value) option.selected = true;
+      select.append(option);
+    }
+    if (!field.open) {
+      select.addEventListener("change", () => { setEdit(field, select.value); touched(); });
+      return el("div", { class: "cfg-ctl" }, select);
+    }
+    // Open: the list, or "Other" and a box for anything else.
+    const otherOption = el("option", { value: OTHER, text: "Other…" });
+    select.append(otherOption);
+    const box = el("input", { class: "field", type: "text", autocomplete: "off", spellcheck: "false",
+                              placeholder: "type a value", "aria-label": human(field.key) + " (other)" });
+    box.hidden = !custom;
+    if (custom) { otherOption.selected = true; box.value = value; }
+    select.addEventListener("change", () => {
+      box.hidden = select.value !== OTHER;
+      if (select.value === OTHER) { box.focus(); if (box.value) setEdit(field, box.value); }
+      else setEdit(field, select.value);
+      touched();
+    });
+    box.addEventListener("input", () => { setEdit(field, box.value); touched(); });
+    return el("div", { class: "cfg-ctl", style: "flex-direction:column;align-items:stretch" }, select, box);
+  }
+  const input = el("input", { class: "field", id, type: field.secret ? "password" : "text", autocomplete: "off", spellcheck: "false" });
+  input.value = value === null || value === undefined ? "" : String(value);
+  input.addEventListener("input", () => { setEdit(field, input.value); touched(); });
+  const parts = [input];
+  if (field.secret) {
+    parts.push(el("button", { class: "btn btn-quiet", type: "button", onclick: (event) => {
+      input.type = input.type === "password" ? "text" : "password";
+      event.target.textContent = input.type === "password" ? "Show" : "Hide";
+    } }, document.createTextNode("Show")));
+  }
+  return el("div", { class: "cfg-ctl" }, ...parts);
+}
+
+function metaLine(field, row) {
+  const meta = el("div", { class: "cfg-meta" });
+  if (field.type !== "yaml") meta.append(el("span", { text: "default: " + shown(fieldDefault(field)) }));
+  if (FORM.edits.has(field.path)) {
+    meta.append(el("span", { text: FORM.edits.get(field.path) === null ? "back to the default when saved"
+                                                                      : "was: " + shown(baseValue(field)) }));
+    meta.append(el("button", { type: "button", onclick: () => { FORM.edits.delete(field.path); formControls(); refreshRow(field, row, true); } },
+                   document.createTextNode("undo")));
+  } else if (inFile(field.path) && field.type !== "yaml" && !same(FORM.values[field.path], fieldDefault(field))) {
+    meta.append(el("button", { type: "button", onclick: () => { setEdit(field, null); refreshRow(field, row, true); } },
+                   document.createTextNode("use default")));
+  }
+  return meta;
+}
+
+function refreshRow(field, row, redrawControl) {
+  row.dataset.changed = String(FORM.edits.has(field.path));
+  row.querySelector(".cfg-meta").replaceWith(metaLine(field, row));
+  if (redrawControl) row.querySelector(".cfg-ctl").replaceWith(control(field, row));
+}
+
+function fieldRow(field) {
+  const row = el("div", { class: "cfg-row", "data-path": field.path, "data-changed": String(FORM.edits.has(field.path)) });
+  const id = "cfg-" + field.path.replace(/[^a-z0-9]/gi, "-");
+  const help = field.help ? el("p", { class: "cfg-help", text: field.help, title: "click to expand" }) : null;
+  if (help) help.addEventListener("click", () => { help.dataset.open = help.dataset.open === "true" ? "false" : "true"; });
+  const left = el("div", {},
+    el("label", { class: "cfg-label", for: id }, document.createTextNode(human(field.key)), el("code", { text: field.path })),
+    help);
+  row.append(left, control(field, row));
+  left.append(metaLine(field, row));
+  return row;
+}
+
+function drawNav() {
+  const nav = $("cfg-nav");
+  for (const node of [...nav.querySelectorAll("button")]) node.remove();
+  for (const section of FORM.sections) {
+    nav.append(el("button", { type: "button", "data-section": section.key,
+                              "aria-current": String(!FORM.query && section.key === FORM.section),
+                              onclick: () => { FORM.query = ""; $("cfg-search").value = ""; FORM.section = section.key;
+                                               PREFS.set("cfgSection", section.key); drawNav(); drawSection(); } },
+      document.createTextNode(section.title), el("span", { class: "dot", hidden: true })));
+  }
+  formControls();
+}
+
+function drawSection() {
+  const main = $("cfg-main");
+  main.replaceChildren();
+  const query = FORM.query.trim().toLowerCase();
+  if (query) {
+    let hits = 0;
+    for (const section of FORM.sections) {
+      const matches = section.fields.filter((f) => (f.path + " " + f.help).toLowerCase().includes(query));
+      if (!matches.length) continue;
+      hits += matches.length;
+      main.append(el("h3", { class: "cfg-group", text: section.title }));
+      for (const field of matches) main.append(fieldRow(field));
+    }
+    if (!hits) main.append(el("p", { class: "empty", text: "No setting mentions “" + FORM.query + "”." }));
+    return;
+  }
+  const section = FORM.sections.find((s) => s.key === FORM.section) || FORM.sections[0];
+  if (!section) return;
+  main.append(el("h3", { class: "cfg-title", text: section.title }));
+  if (section.doc) main.append(el("p", { class: "cfg-doc", text: section.doc }));
+  for (const field of section.fields) {
+    if (field.group) main.append(el("h4", { class: "cfg-group", text: field.group }));
+    main.append(fieldRow(field));
+  }
+}
+
+function takeForm(reply) {
+  FORM.sections = reply.sections || [];
+  FORM.values = reply.values || {};
+  FORM.mtime = reply.mtime;
+  FORM.fields = new Map();
+  for (const section of FORM.sections) for (const field of section.fields) FORM.fields.set(field.path, { ...field, section: section.key });
+  FORM.loaded = true;
+  if (!FORM.sections.some((s) => s.key === FORM.section)) FORM.section = (FORM.sections[0] || {}).key;
+  if (reply.path) $("config-path").textContent = reply.path;
+  drawNav();
+  drawSection();
+}
+
+async function loadForm() {
+  FORM.busy = true; formControls();
+  const reply = await api("/api/config/form").catch((e) => ({ ok: false, error: String(e) }));
+  FORM.busy = false;
+  if (!reply.ok) { formStatus(reply.error || "could not load the config", "bad"); formControls(); return; }
+  FORM.edits.clear();
+  takeForm(reply);
+  formStatus("loaded " + clock());
+  formControls();
+}
+
+async function saveForm(restart) {
+  if (FORM.busy || !FORM.loaded) return;
+  if (!restart && !formDirty()) return;
+  if (restart && !confirm("Save, then restart the agent, face, voice and game watcher? The console drops out for a few seconds.")) return;
+  if (!formDirty()) {  // restart only
+    FORM.busy = true; formControls();
+    const reply = await api("/api/config", { text: CONFIG.saved || (await api("/api/config")).text, mtime: FORM.mtime, restart: true })
+      .catch((e) => ({ ok: false, error: String(e) }));
+    FORM.busy = false;
+    formStatus(reply.ok ? "restarting — this page reconnects on its own" : "not restarted: " + reply.error, reply.ok ? "good" : "bad");
+    formControls();
+    return;
+  }
+  FORM.busy = true; formControls();
+  formStatus("checking…");
+  const changes = Object.fromEntries(FORM.edits);
+  const reply = await api("/api/config/form", { changes, mtime: FORM.mtime, restart: !!restart })
+    .catch((e) => ({ ok: false, error: String(e) }));
+  FORM.busy = false;
+  if (!reply.ok) { formStatus("not saved: " + (reply.error || "unknown error"), "bad"); formControls(); return; }
+  const count = FORM.edits.size;
+  FORM.edits.clear();
+  takeForm(reply);
+  // The YAML view is now out of date; it reloads next time it is opened.
+  CONFIG.loaded = false;
+  if (reply.restarting) formStatus("saved " + count + " — restarting; this page reconnects on its own", "good");
+  else if (reply.restart_error) formStatus("saved, but the restart failed: " + reply.restart_error, "bad");
+  else formStatus("saved " + count + " change" + (count === 1 ? "" : "s") + " at " + clock() + " — restart for most to take effect", "good");
+  formControls();
+}
+
+function setConfigMode(mode) {
+  const yaml = mode === "yaml";
+  if (yaml && formDirty() && !confirm("The settings form has unsaved changes. Switch to YAML anyway? They stay in the form until you save or discard them.")) return false;
+  $("cfg-form").hidden = yaml;
+  $("cfg-yaml").hidden = !yaml;
+  $("cfg-mode-form").setAttribute("aria-pressed", String(!yaml));
+  $("cfg-mode-yaml").setAttribute("aria-pressed", String(yaml));
+  PREFS.set("cfgMode", mode);
+  if (yaml && !CONFIG.loaded) loadConfig(true);
+  if (!yaml && !FORM.loaded) loadForm();
+  return true;
+}
+
+async function openYamlAt(path) {
+  if (!setConfigMode("yaml")) return;
+  if (!CONFIG.loaded) await loadConfig(true);
+  const area = $("config-text");
+  // Find the key under its sections, indentation and all.
+  const parts = path.split(".");
+  let from = 0;
+  parts.forEach((part, depth) => {
+    const match = new RegExp("^" + " ".repeat(depth * 2) + part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ":", "m")
+      .exec(area.value.slice(from));
+    if (match) from += match.index;
+  });
+  area.focus();
+  area.setSelectionRange(from, from);
+  const line = area.value.slice(0, from).split("\n").length;
+  area.scrollTop = Math.max(0, (line - 4) * parseFloat(getComputedStyle(area).lineHeight || "18"));
+}
+
+$("cfg-mode-form").addEventListener("click", () => setConfigMode("form"));
+$("cfg-mode-yaml").addEventListener("click", () => setConfigMode("yaml"));
+$("cfg-save").addEventListener("click", () => saveForm(false));
+$("cfg-save-restart").addEventListener("click", () => saveForm(true));
+$("cfg-discard").addEventListener("click", () => { FORM.edits.clear(); drawSection(); formControls(); formStatus("changes discarded"); });
+$("cfg-search").addEventListener("input", (event) => { FORM.query = event.target.value; drawNav(); drawSection(); });
+document.addEventListener("keydown", (event) => {
+  if (currentView !== "config" || $("cfg-form").hidden) return;
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") { event.preventDefault(); saveForm(false); }
 });
 
 function badge(id, count, tone) {
@@ -1641,6 +2526,418 @@ $("sessions").addEventListener("keydown", (event) => {
   }
 });
 
+/* -- the avatar ---------------------------------------------------------------
+   face/holo.py's HoloRenderer, ported: the same designs, palettes, projection
+   and layers - disc, cage, knot, studs, rim and gauge, corona, halos, glow -
+   so the mark in the header is the avatar rather than a drawing of it. The
+   filament scatter is seeded here too, though not by Python's generator, so
+   the traces lie differently while the ruling is identical. There is no audio
+   in a browser tab, so the spectrum that drives the studs and corona is a
+   stand-in: it moves the way speech does while speaking and barely stirs at
+   rest. One loop draws the header mark, the ghost behind the page and the tab
+   icon. */
+
+const HOLO_PALETTES = {
+  steel: {
+    idle:      [[214, 242, 255], [110, 196, 238], [36, 138, 196], [16, 58, 92], [3, 8, 13]],
+    listening: [[255, 255, 255], [240, 232, 255], [196, 168, 255], [86, 64, 150], [10, 6, 22]],
+    thinking:  [[200, 255, 236], [90, 220, 180], [24, 168, 128], [10, 66, 52], [2, 10, 8]],
+    speaking:  [[240, 252, 255], [170, 226, 255], [70, 180, 240], [24, 80, 130], [4, 10, 16]],
+  },
+  gold: {
+    idle:      [[255, 232, 186], [255, 182, 74], [238, 136, 24], [112, 54, 10], [13, 8, 3]],
+    listening: [[255, 255, 255], [232, 242, 255], [150, 196, 255], [48, 78, 130], [5, 9, 18]],
+    thinking:  [[255, 222, 160], [255, 158, 46], [224, 104, 12], [100, 42, 6], [14, 7, 2]],
+    speaking:  [[255, 248, 226], [255, 200, 100], [255, 150, 32], [130, 62, 12], [16, 9, 4]],
+  },
+};
+// Red is red on any machine.
+const HOLO_SHARED = {
+  alert:   [[255, 226, 198], [255, 108, 48], [226, 52, 16], [96, 20, 8], [20, 5, 3]],
+  offline: [[152, 160, 170], [98, 106, 118], [62, 68, 78], [30, 33, 38], [9, 10, 12]],
+};
+const HOLO_DESIGNS = {
+  core: {
+    latitudes: [-58, -30, -4, 24, 52], meridians: 6, filaments: 120, span: [0.18, 0.62],
+    studs: 160, spikes: 76, halos: [[1.11, 22, 0], [1.21, 74, 1.1]],
+    core: [[0.30, 8, 0], [0.24, 68, 0.6], [0.36, 120, 2.0]],
+    spin: 0.40, tilt: 19, ticks: 40, tickEvery: 5,
+  },
+  lattice: {
+    latitudes: [-48, -16, 16, 48], meridians: 9, filaments: 36, span: [0.55, 1.25],
+    studs: 240, spikes: 48, halos: [[1.15, 86, 0.35], [1.27, 12, 2.4]],
+    core: [[0.21, 4, 0], [0.21, 88, 0.9], [0.21, 46, 1.9]],
+    spin: -0.32, tilt: 27, ticks: 60, tickEvery: 6,
+  },
+};
+const HOLO_SHADES = 12, HOLO_BANDS = 16, HOLO_RING = 40, DEG = Math.PI / 180;
+// Energy each mode settles at: what widens the sphere and warms the near side.
+const HOLO_ENERGY = { idle: 0, listening: 0.35, thinking: 0.55, speaking: 0.7, alert: 0.8, offline: 0 };
+
+function holoTheme(palette, mode) {
+  const p = HOLO_PALETTES[palette] || HOLO_PALETTES.steel;
+  const t = p[mode] || HOLO_SHARED[mode] || p.idle;
+  return { hot: t[0], bright: t[1], wire: t[2], dim: t[3], backdrop: t[4] };
+}
+const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+const rgba = (c, a = 1) => "rgba(" + Math.round(c[0]) + "," + Math.round(c[1]) + "," + Math.round(c[2]) + "," + a + ")";
+function mixTheme(a, b, t) {
+  const out = {};
+  for (const k of ["hot", "bright", "wire", "dim", "backdrop"]) out[k] = mix(a[k], b[k], t);
+  return out;
+}
+
+/* geometry, built once per design */
+
+function seeded(seed) {
+  return () => {
+    seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function randomUnit(rnd) {
+  // Uniform on the sphere; sampling the two angles instead clumps at the poles.
+  const y = rnd() * 2 - 1, a = rnd() * 2 * Math.PI, r = Math.sqrt(Math.max(0, 1 - y * y));
+  return [r * Math.cos(a), y, r * Math.sin(a)];
+}
+function perpendicular(p, rnd) {
+  for (;;) {
+    const q = randomUnit(rnd);
+    const x = p[1] * q[2] - p[2] * q[1], y = p[2] * q[0] - p[0] * q[2], z = p[0] * q[1] - p[1] * q[0];
+    const n = Math.hypot(x, y, z);
+    if (n > 1e-3) return [x / n, y / n, z / n];
+  }
+}
+function tippedCircle(radius, pitch, yaw, samples) {
+  const cp = Math.cos(pitch * DEG), sp = Math.sin(pitch * DEG), cy = Math.cos(yaw), sy = Math.sin(yaw);
+  const u = [cy, 0, sy], v = [-sy * cp, -sp, cy * cp], out = [];
+  for (let i = 0; i <= samples; i++) {
+    const c = Math.cos(i * 2 * Math.PI / samples) * radius, s = Math.sin(i * 2 * Math.PI / samples) * radius;
+    out.push([u[0] * c + v[0] * s, u[1] * c + v[1] * s, u[2] * c + v[2] * s]);
+  }
+  return out;
+}
+const HOLO_GEOMETRY = {};
+function holoGeometry(name) {
+  if (HOLO_GEOMETRY[name]) return HOLO_GEOMETRY[name];
+  const d = HOLO_DESIGNS[name], rnd = seeded(0x5EED), step = 2 * Math.PI / HOLO_RING;
+  const rings = d.latitudes.map((lat) => {
+    const out = [], c = Math.cos(lat * DEG), s = Math.sin(lat * DEG);
+    for (let i = 0; i <= HOLO_RING; i++) out.push([c * Math.cos(i * step), s, c * Math.sin(i * step)]);
+    return out;
+  });
+  for (let m = 0; m < d.meridians; m++) {
+    const lon = Math.PI * m / d.meridians, out = [];
+    for (let i = 0; i <= HOLO_RING; i++) {
+      const ca = Math.cos(i * step), sa = Math.sin(i * step);
+      out.push([ca * Math.cos(lon), sa, ca * Math.sin(lon)]);
+    }
+    rings.push(out);
+  }
+  const filaments = [];
+  for (let f = 0; f < d.filaments; f++) {
+    const p = randomUnit(rnd), span = d.span[0] + rnd() * (d.span[1] - d.span[0]), tan = perpendicular(p, rnd), arc = [];
+    for (let i = 0; i <= 3; i++) {
+      const a = span * (i / 3 - 0.5), c = Math.cos(a), s = Math.sin(a);
+      arc.push([p[0] * c + tan[0] * s, p[1] * c + tan[1] * s, p[2] * c + tan[2] * s]);
+    }
+    filaments.push(arc);
+  }
+  const studs = [];
+  for (let i = 0; i < d.studs; i++) studs.push([randomUnit(rnd), 0.02 + rnd() * 0.065, i % HOLO_BANDS]);
+  const spikes = [];
+  for (let k = 0; k < d.spikes; k++) {
+    const frac = k / d.spikes, mirrored = Math.abs(((frac * 2) % 2) - 1);
+    spikes.push([frac * 2 * Math.PI, 0.35 + rnd() * 0.65, Math.min(HOLO_BANDS - 1, Math.floor(mirrored * HOLO_BANDS))]);
+  }
+  return (HOLO_GEOMETRY[name] = {
+    design: d, rings, filaments, studs, spikes,
+    halos: d.halos.map(([r, p, y]) => tippedCircle(r, p, y, HOLO_RING)),
+    core: d.core.map(([r, p, y]) => tippedCircle(r, p, y, 24)),
+  });
+}
+
+/* one frame */
+
+function drawHolo(ctx, size, px, geo, st) {
+  const d = geo.design, th = st.theme, voice = st.voice, e = st.energy, TOP = HOLO_SHADES - 1;
+  const cx = size / 2, cy = size / 2;
+  const r = Math.min(size * 0.345 * (1 + 0.07 * voice), size * 0.492 / 1.28);
+  const angle = st.yaw + st.gx * 1.3, tilt = d.tilt * DEG + st.gy * 1.1;
+  const cyw = Math.cos(angle), syw = Math.sin(angle), ct = Math.cos(tilt), stl = Math.sin(tilt);
+  const W = (min, k) => Math.max(min * px, r * k);
+  ctx.clearRect(0, 0, size, size);
+  ctx.lineCap = "round";
+
+  const project = (p, flip) => {
+    const sy = flip ? -syw : syw;
+    const xr = p[0] * cyw + p[2] * sy, zr = p[2] * cyw - p[0] * sy;
+    return [cx + xr * r, cy - (p[1] * ct - zr * stl) * r, p[1] * stl + zr * ct];
+  };
+  // Depth is quantised into shades so each shade goes out as one stroke.
+  const buckets = () => Array.from({ length: HOLO_SHADES }, () => new Path2D());
+  const addPath = (paths, pts, flip) => {
+    let a = project(pts[0], flip);
+    for (let i = 1; i < pts.length; i++) {
+      const b = project(pts[i], flip);
+      const shade = Math.max(0, Math.min(TOP, Math.floor(((a[2] + b[2]) / 2 + 1) * 0.5 * TOP)));
+      paths[shade].moveTo(a[0], a[1]); paths[shade].lineTo(b[0], b[1]);
+      a = b;
+    }
+  };
+  const strokeAll = (paths, colours, width, alphas) => {
+    ctx.lineWidth = width;
+    for (let i = 0; i < HOLO_SHADES; i++) {
+      ctx.strokeStyle = rgba(colours[i], alphas ? alphas[i] : 1);
+      ctx.stroke(paths[i]);
+    }
+  };
+
+  // the dark it hangs in
+  const disc = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+  disc.addColorStop(0, rgba(mix(th.backdrop, th.wire, 0.30)));
+  disc.addColorStop(1, rgba(mix(th.backdrop, [0, 0, 0], 0.55)));
+  ctx.fillStyle = disc;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI); ctx.fill();
+
+  // the cage: far side dim, near side hot
+  const shades = [];
+  for (let i = 0; i < HOLO_SHADES; i++) {
+    const t = i / TOP;
+    const c = t < 0.5 ? mix(th.dim, th.wire, t * 2) : mix(th.wire, th.bright, (t - 0.5) * 2);
+    shades.push(mix(c, th.hot, 0.30 * e * t));
+  }
+  let paths = buckets();
+  for (const ring of geo.rings) addPath(paths, ring);
+  strokeAll(paths, shades, W(0.8, 0.006));
+  paths = buckets();
+  for (const arc of geo.filaments) addPath(paths, arc);
+  strokeAll(paths, shades, W(0.6, 0.004));
+
+  // the knot at the middle, counter-rotating
+  const near = mix(th.bright, th.hot, 0.25 + 0.75 * voice), far = mix(th.wire, th.bright, 0.3 + 0.5 * voice);
+  paths = buckets();
+  for (const ring of geo.core) addPath(paths, ring, true);
+  strokeAll(paths, shades.map((_, i) => mix(far, near, i / TOP)), W(0.8, 0.005));
+
+  // studs, each lengthened by its own band
+  paths = buckets();
+  for (const [p, length, band] of geo.studs) {
+    const q = project(p);
+    if (q[2] < -0.55) continue;
+    const reach = 1 + length + 0.16 * st.eq[band];
+    const shade = Math.max(0, Math.min(TOP, Math.floor((q[2] + 1) * 0.5 * TOP)));
+    paths[shade].moveTo(q[0], q[1]);
+    paths[shade].lineTo(cx + (q[0] - cx) * reach, cy + (q[1] - cy) * reach);
+  }
+  strokeAll(paths, shades, W(0.7, 0.0055));
+
+  // the rim, breathing, and the gauge ring inside it
+  const breath = 0.5 + 0.5 * Math.sin(st.t * 1.5);
+  ctx.strokeStyle = rgba(mix(th.wire, th.hot, 0.06 + 0.14 * breath + 0.34 * e));
+  ctx.lineWidth = W(1, 0.008);
+  ctx.beginPath(); ctx.arc(cx, cy, r * 0.995, 0, 2 * Math.PI); ctx.stroke();
+  ctx.strokeStyle = rgba(mix(th.dim, th.bright, 0.35 + 0.4 * e));
+  ctx.lineWidth = W(0.8, 0.007);
+  ctx.beginPath();
+  for (let k = 0; k < d.ticks; k++) {
+    const a = -st.t * 0.22 + k * 2 * Math.PI / d.ticks, inner = k % d.tickEvery === 0 ? 0.90 : 0.935;
+    const ca = Math.cos(a), sa = Math.sin(a);
+    ctx.moveTo(cx + ca * r * inner, cy - sa * r * inner);
+    ctx.lineTo(cx + ca * r * 0.965, cy - sa * r * 0.965);
+  }
+  ctx.stroke();
+
+  // the corona: one spike per band, and a crest riding round it
+  if (st.mode !== "offline") {
+    const gain = st.mode === "speaking" ? 0.24 : 0.16, idle = 0.5 + 0.5 * Math.sin(st.t * 1.9);
+    const swell = st.mode === "listening" ? 0.06 * (0.5 + 0.5 * Math.sin(st.t * 4.2)) : 0;
+    ctx.lineWidth = W(1, 0.008);
+    for (const [a, weight, band] of geo.spikes) {
+      const level = st.eq[band];
+      const reach = Math.min(1.28, 1.015 + weight * (0.045 + 0.020 * idle + swell) + gain * weight * level);
+      const ca = Math.cos(a), sa = Math.sin(a);
+      ctx.strokeStyle = rgba(mix(th.wire, th.hot, 0.15 + 0.85 * Math.min(1, level * 1.4)));
+      ctx.beginPath();
+      ctx.moveTo(cx + ca * r * 0.98, cy - sa * r * 0.98);
+      ctx.lineTo(cx + ca * r * reach, cy - sa * r * reach);
+      ctx.stroke();
+    }
+    const crest = (st.t * 0.9) % (2 * Math.PI), reach = 1.015 + 0.10 + 0.10 * voice;
+    ctx.strokeStyle = rgba(th.hot);
+    ctx.beginPath();
+    for (let k = 0; k < 3; k++) {
+      const ca = Math.cos(crest + k * 0.09), sa = Math.sin(crest + k * 0.09);
+      ctx.moveTo(cx + ca * r * 0.98, cy - sa * r * 0.98);
+      ctx.lineTo(cx + ca * r * reach, cy - sa * r * reach);
+    }
+    ctx.stroke();
+  }
+
+  // halos: the one place depth is alpha, so the far half fades out
+  paths = buckets();
+  for (const halo of geo.halos) addPath(paths, halo);
+  const haloColours = [], haloAlpha = [];
+  for (let i = 0; i < HOLO_SHADES; i++) {
+    const t = i / TOP;
+    haloColours.push(mix(th.wire, th.hot, (0.15 + 0.65 * t) * (0.7 + 0.3 * e)));
+    haloAlpha.push(Math.pow(t, 1.4));
+  }
+  strokeAll(paths, haloColours, W(1, 0.009), haloAlpha);
+
+  // glow, clipped to the sphere: the core, then whatever the mode is doing
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI); ctx.clip();
+  ctx.globalCompositeOperation = "lighter";
+  const core = r * (0.055 + 0.075 * voice + 0.025 * e);
+  const bloom = ctx.createRadialGradient(cx, cy, 0, cx, cy, core * 3);
+  bloom.addColorStop(0, rgba(th.hot, (170 + 85 * voice) / 255));
+  bloom.addColorStop(0.33, rgba(th.bright, (40 + 60 * voice) / 255));
+  bloom.addColorStop(1, rgba(th.bright, 0));
+  ctx.fillStyle = bloom;
+  ctx.beginPath(); ctx.arc(cx, cy, core * 3, 0, 2 * Math.PI); ctx.fill();
+  const w = W(1, 0.025);
+  ctx.lineWidth = w;
+  ctx.shadowBlur = r * 0.06;
+  const ring = (radius, colour, alpha) => {
+    ctx.strokeStyle = ctx.shadowColor = rgba(colour, alpha);
+    ctx.beginPath(); ctx.arc(cx, cy, radius, 0, 2 * Math.PI); ctx.stroke();
+  };
+  if (st.mode === "listening") {
+    // inward, drawing sound in, whether or not anyone is talking yet
+    for (let k = 0; k < 3; k++) {
+      const phase = (st.t * 1.1 + k / 3) % 1;
+      ring(r * (0.96 - 0.62 * phase), th.hot, 0.92 * Math.pow(phase, 1.4));
+    }
+    ctx.lineWidth = w * 1.6;
+    ring(r * 0.90, th.hot, (150 + 105 * (0.5 + 0.5 * Math.sin(st.t * 4.2))) / 255);
+  } else if (st.mode === "speaking") {
+    for (let k = 0; k < 3; k++) {
+      const phase = (st.t * 1.35 + k / 3) % 1;
+      ring(r * (0.18 + 0.78 * phase), th.hot, 0.82 * Math.pow(1 - phase, 1.6) * (0.25 + 0.75 * voice));
+    }
+  } else if (st.mode === "thinking") {
+    // a rotating gap: work in progress without a spinner cliche
+    const start = ((st.t * 150) % 360) * DEG;
+    ctx.strokeStyle = ctx.shadowColor = rgba(th.hot, 0.88);
+    ctx.beginPath(); ctx.arc(cx, cy, r * 0.72, start, start + 290 * DEG); ctx.stroke();
+  } else if (st.mode === "alert") {
+    const urgency = 0.5 + 0.5 * Math.sin(st.t * 6.5);
+    ring(r * 0.86, mix(th.wire, th.hot, urgency), 0.94);
+  }
+  if (st.flash > 0.01) {
+    ctx.lineWidth = w * 1.4;
+    ring(r * (0.30 + 0.66 * (1 - st.flash)), mix(th.hot, [255, 255, 255], 0.4), 0.9 * st.flash);
+  }
+  ctx.restore();
+}
+
+/* the loop */
+
+const AVATAR = (() => {
+  // Before the first poll, so the page opens in the right colours.
+  document.body.dataset.palette = BOOT.palette || "steel";
+  const still = matchMedia("(prefers-reduced-motion: reduce)");
+  const mark = $("mark"), ghost = $("ghost"), favicon = $("favicon");
+  const icon = document.createElement("canvas");
+  icon.width = icon.height = 64;
+  let design = BOOT.design in HOLO_DESIGNS ? BOOT.design : "lattice";
+  let mode = null, palette = null, theme = null, from = null, since = 0;
+  let energy = 0, yaw = 0, flash = 0, last = null, lastGhost = -1, lastIcon = -1e9, key = "";
+  let gx = 0, gy = 0, aimX = 0, aimY = 0;
+  const eq = new Array(HOLO_BANDS).fill(0);
+
+  // The face leans towards the cursor; so does this, a little.
+  addEventListener("pointermove", (event) => {
+    aimX = (event.clientX / innerWidth - 0.5) * 0.35;
+    aimY = (event.clientY / innerHeight - 0.5) * 0.25;
+  }, { passive: true });
+
+  function fit(canvas, cap) {
+    const box = canvas.getBoundingClientRect();
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    const side = Math.max(16, Math.min(cap, Math.round(Math.min(box.width, box.height) * dpr)));
+    if (canvas.width !== side) canvas.width = canvas.height = side;
+    return dpr;
+  }
+
+  function frame(now) {
+    const t = now / 1000, dt = last === null ? 0 : Math.min(0.25, t - last);
+    last = t;
+    const nextMode = document.body.dataset.mode || "idle";
+    const nextPalette = document.body.dataset.palette === "gold" ? "gold" : "steel";
+    if (nextMode !== mode || nextPalette !== palette) {
+      const target = holoTheme(nextPalette, nextMode);
+      from = theme || target;
+      since = t;
+      if (mode !== null && nextMode !== "offline") flash = 1;
+      mode = nextMode; palette = nextPalette;
+      theme = target;
+    }
+    const blend = Math.min(1, (t - since) / 0.30), eased = blend * blend * (3 - 2 * blend);
+    const shown = blend >= 1 ? theme : mixTheme(from, theme, eased);
+
+    energy += ((HOLO_ENERGY[mode] ?? 0) - energy) * (1 - Math.exp(-4 * dt));
+    flash = Math.max(0, flash - dt * 2);
+    gx += (aimX - gx) * (1 - Math.exp(-3 * dt));
+    gy += (aimY - gy) * (1 - Math.exp(-3 * dt));
+    const geo = holoGeometry(design);
+    let spin = geo.design.spin * (1 + 0.9 * energy);
+    if (mode === "thinking") spin *= 2.3;
+    else if (mode === "offline") spin *= 0.25;
+    yaw = (yaw + spin * dt) % (2 * Math.PI);
+
+    // A stand-in spectrum: syllables while speaking, a murmur while
+    // listening, nearly nothing otherwise.
+    const loud = mode === "speaking" ? 1 : mode === "listening" ? 0.25 : mode === "offline" ? 0 : 0.06;
+    const syllable = Math.max(0, Math.sin(t * 5.3) * 0.6 + Math.sin(t * 2.1 + 1) * 0.4);
+    let sum = 0;
+    for (let b = 0; b < HOLO_BANDS; b++) {
+      const wobble = 0.5 + 0.5 * Math.sin(t * (6.1 + b * 0.37) + b * 1.9) * Math.sin(t * 2.7 + b * 0.8);
+      const target = loud * wobble * (mode === "speaking" ? syllable : 1) * (1 - b / (HOLO_BANDS * 1.6));
+      eq[b] += (target - eq[b]) * (1 - Math.exp(-14 * dt));
+      sum += eq[b];
+    }
+    const voice = Math.min(1, (sum / HOLO_BANDS) * 1.6);
+    const st = { theme: shown, energy, voice, eq, yaw, t, gx, gy, mode, flash };
+
+    const mdpr = fit(mark, 256);
+    drawHolo(mark.getContext("2d"), mark.width, mdpr, geo, st);
+    // The ghost is big and faint; a slower rate is invisible at its opacity.
+    if (lastGhost < 0 || t - lastGhost > 1 / 24 || still.matches) {
+      lastGhost = t;
+      const gdpr = fit(ghost, 1100);
+      drawHolo(ghost.getContext("2d"), ghost.width, gdpr * 1.5, geo, { ...st, gx: gx * 0.5, gy: gy * 0.5 });
+    }
+    // The tab icon: on every change of state, and every few seconds so it turns.
+    const nextKey = mode + palette + design;
+    if (nextKey !== key || t - lastIcon > 4 || (blend < 1 && t - lastIcon > 0.1)) {
+      key = nextKey; lastIcon = t;
+      drawHolo(icon.getContext("2d"), 64, 1.2, geo, { ...st, gx: 0, gy: 0, flash: 0 });
+      favicon.href = icon.toDataURL("image/png");
+    }
+    if (!still.matches) requestAnimationFrame(frame);
+  }
+
+  // With motion reduced, a still frame is drawn whenever the state changes.
+  function redraw() { last = null; requestAnimationFrame(frame); }
+  new MutationObserver(() => { if (still.matches) redraw(); })
+    .observe(document.body, { attributes: true, attributeFilter: ["data-mode", "data-palette"] });
+  if (still.addEventListener) still.addEventListener("change", redraw);
+  addEventListener("resize", () => { if (still.matches) redraw(); });
+  requestAnimationFrame(frame);
+
+  return {
+    setDesign(name) {
+      if (!(name in HOLO_DESIGNS) || name === design) return;
+      design = name; key = "";
+      if (still.matches) redraw();
+    },
+  };
+})();
+
 /* -- header ------------------------------------------------------------------ */
 
 let assistantName = BOOT.assistant || "the assistant";
@@ -1652,13 +2949,22 @@ function renderHeader(state) {
   const title = me.title || BOOT.title || assistantName, motto = me.motto ?? BOOT.motto ?? "";
   document.title = title + " console";
   document.body.dataset.palette = me.palette || BOOT.palette || "steel";
+  AVATAR.setDesign(me.design || BOOT.design);
 
   $("assistant-name").textContent = title;
   $("assistant-motto").textContent = motto;
   $("assistant-motto").hidden = !motto;
   $("device-sub").textContent = device.name + " on " + device.host + ", v" + device.version;
   $("uptime").textContent = "up " + duration(state.snapshot.uptime_seconds);
-  $("say-route").textContent = jarvis.route + (jarvis.ok ? " ready" : " unreachable");
+  if (jarvis.enabled === false) {
+    // The Pi is switched off on purpose: speech stays on this PC, so the card
+    // says so instead of reporting Jarvis as broken.
+    $("say-label").textContent = "Say out loud";
+    $("say-route").textContent = (jarvis.speech_route || "local") + " speakers";
+    $("say-hint").textContent = "Spoken by " + assistantName + " through this PC's speakers.";
+  } else {
+    $("say-route").textContent = jarvis.route + (jarvis.ok ? " ready" : " unreachable");
+  }
   if (me.mirror_jarvis) {
     $("say-label").textContent = "Say something";
     $("say-hint").textContent = "This PC is Jarvis at the moment; text goes to his voice on the Pi.";
@@ -1676,9 +2982,13 @@ function renderHeader(state) {
   const chips = [
     { text: state.agent.running ? "agent online" : "agent offline",
       tone: state.agent.running ? "ok" : "bad" },
-    { text: "Jarvis " + (jarvis.ok ? "on the Pi" : "unreachable"),
-      tone: jarvis.ok ? "ok" : "warn", title: (jarvis.route || "") + " " + (jarvis.detail || "") },
   ];
+  // No chip at all while the Pi is switched off (jarvis.enabled false):
+  // "unreachable" there is the plan, not a fault.
+  if (jarvis.enabled !== false) {
+    chips.push({ text: "Jarvis " + (jarvis.ok ? "on the Pi" : "unreachable"),
+      tone: jarvis.ok ? "ok" : "warn", title: (jarvis.route || "") + " " + (jarvis.detail || "") });
+  }
   if (wake) {
     chips.push({ text: "\u201c" + wake + "\u201d", tone: "",
       title: "Wake word for " + assistantName + (me.voice ? ", voice " + me.voice : "") });
@@ -1694,6 +3004,20 @@ function renderHeader(state) {
       title: mine ? "This PC has claimed the wake word, so the Pi is standing down."
                   : jarvis.wake_owner + " has claimed the wake word.",
     });
+  }
+  const printer = state.printer;
+  if (printer && printer.enabled) {
+    const busy = ["printing", "heating", "paused"].includes(printer.state);
+    const left = printer.remaining_seconds ? ", " + duration(printer.remaining_seconds) + " left" : "";
+    chips.push(!printer.connected
+      ? { text: "printer offline", tone: "", title: printer.error || "" }
+      : busy
+        ? { text: "printer " + (printer.state === "printing" ? (printer.progress ?? 0) + "%" : printer.state) + left,
+            tone: printer.state === "paused" ? "warn" : "live",
+            title: (printer.file || "") + (printer.layer ? " — layer " + printer.layer + "/" + (printer.layers || "?") : "") +
+                   (printer.nozzle != null ? "\nnozzle " + printer.nozzle + "°C, bed " + printer.bed + "°C" : "") }
+        : { text: "printer " + (printer.state || "idle"), tone: printer.state === "finished" ? "ok" : "",
+            title: printer.file || "" });
   }
   if (alerting) chips.push({ text: state.alerts.active.length + " alert" + (state.alerts.active.length > 1 ? "s" : ""), tone: "warn" });
 
@@ -1920,6 +3244,1142 @@ $("cmd-run").addEventListener("click", runSelected);
 $("cmd-args").addEventListener("keydown", (event) => {
   if (event.key === "Enter") runSelected();
 });
+
+/* -- workshop ------------------------------------------------------------------
+   Parts for the printer. The list is printer.parts through /api/exec, like
+   every other command; the files come from /api/prints/file. A part being
+   made is followed by polling its record, which the job rewrites at each
+   step from whichever process is doing it - so a sculpture started by voice
+   builds up here just the same as one started from the form. */
+
+const REDUCED_MOTION = matchMedia("(prefers-reduced-motion: reduce)");
+
+function partUrl(name, kind) {
+  return "/api/prints/file?name=" + encodeURIComponent(name) + "&kind=" + encodeURIComponent(kind) +
+    (BOOT.token ? "&token=" + encodeURIComponent(BOOT.token) : "");
+}
+
+async function partBytes(name, kind) {
+  const headers = {};
+  if (BOOT.token) headers["X-CA-Token"] = BOOT.token;
+  const response = await fetch(partUrl(name, kind), { headers, cache: "no-store" });
+  if (!response.ok) throw new Error("HTTP " + response.status);
+  return response.arrayBuffer();
+}
+
+/* Binary STL (what OpenSCAD and trimesh write), with ASCII as a fallback.
+   Normals are worked out from the triangles rather than trusted from the
+   file, and the bounds come out of the same pass. */
+function parseStl(buffer) {
+  const view = new DataView(buffer);
+  const count = buffer.byteLength >= 84 ? view.getUint32(80, true) : 0;
+  let pos;
+  if (count && buffer.byteLength === 84 + count * 50) {
+    pos = new Float32Array(count * 9);
+    for (let i = 0; i < count; i++) {
+      const at = 84 + i * 50 + 12;
+      for (let k = 0; k < 9; k++) pos[i * 9 + k] = view.getFloat32(at + k * 4, true);
+    }
+  } else {
+    const text = new TextDecoder().decode(buffer);
+    const nums = [];
+    for (const m of text.matchAll(/vertex\s+(\S+)\s+(\S+)\s+(\S+)/g)) nums.push(+m[1], +m[2], +m[3]);
+    pos = new Float32Array(nums.length - (nums.length % 9));
+    pos.set(nums.slice(0, pos.length));
+  }
+  const nrm = new Float32Array(pos.length);
+  const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < pos.length; i += 9) {
+    const ux = pos[i + 3] - pos[i], uy = pos[i + 4] - pos[i + 1], uz = pos[i + 5] - pos[i + 2];
+    const vx = pos[i + 6] - pos[i], vy = pos[i + 7] - pos[i + 1], vz = pos[i + 8] - pos[i + 2];
+    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    const len = Math.hypot(nx, ny, nz) || 1;
+    nx /= len; ny /= len; nz /= len;
+    for (let k = 0; k < 9; k += 3) {
+      nrm[i + k] = nx; nrm[i + k + 1] = ny; nrm[i + k + 2] = nz;
+      for (let a = 0; a < 3; a++) {
+        const v = pos[i + k + a];
+        if (v < lo[a]) lo[a] = v;
+        if (v > hi[a]) hi[a] = v;
+      }
+    }
+  }
+  return { pos, nrm, lo, hi, triangles: pos.length / 9 };
+}
+
+function cssRgb(name, fallback) {
+  const raw = getComputedStyle(document.body).getPropertyValue(name).trim();
+  let m = raw.match(/^#([0-9a-f]{6})$/i);
+  if (m) return [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16) / 255);
+  m = raw.match(/rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/i);
+  if (m) return [m[1], m[2], m[3]].map((v) => Number(v) / 255);
+  return fallback;
+}
+
+const V3 = {
+  sub: (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]],
+  cross: (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]],
+  dot: (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2],
+  norm: (a) => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; },
+};
+const M4 = {
+  mul(a, b) {
+    const o = new Float32Array(16);
+    for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) {
+      let s = 0;
+      for (let k = 0; k < 4; k++) s += a[k * 4 + r] * b[c * 4 + k];
+      o[c * 4 + r] = s;
+    }
+    return o;
+  },
+  perspective(fovy, aspect, near, far) {
+    const f = 1 / Math.tan(fovy / 2), nf = 1 / (near - far);
+    return new Float32Array([f / aspect, 0, 0, 0, 0, f, 0, 0, 0, 0, (far + near) * nf, -1, 0, 0, 2 * far * near * nf, 0]);
+  },
+  lookAt(eye, at, up) {
+    const z = V3.norm(V3.sub(eye, at)), x = V3.norm(V3.cross(up, z)), y = V3.cross(z, x);
+    return new Float32Array([x[0], y[0], z[0], 0, x[1], y[1], z[1], 0, x[2], y[2], z[2], 0,
+      -V3.dot(x, eye), -V3.dot(y, eye), -V3.dot(z, eye), 1]);
+  },
+};
+
+const MESH_VS = `
+attribute vec3 aP; attribute vec3 aN;
+uniform mat4 uMVP; uniform vec3 uShift;
+varying vec3 vN; varying vec3 vP;
+void main() { vP = aP + uShift; vN = aN; gl_Position = uMVP * vec4(vP, 1.0); }`;
+// Lit from over the viewer's shoulder, rimmed in the mode colour, and cut
+// off at uCut - which is how a new part builds up from the plate.
+const MESH_FS = `
+precision highp float;
+varying vec3 vN; varying vec3 vP;
+uniform vec3 uEye; uniform vec3 uKey; uniform vec3 uTint; uniform vec3 uInk;
+uniform float uCut; uniform float uTop;
+void main() {
+  if (vP.z > uCut) discard;
+  vec3 N = normalize(vN);
+  vec3 V = normalize(uEye - vP);
+  if (dot(N, V) < 0.0) N = -N;
+  float key = max(dot(N, uKey), 0.0);
+  float fill = max(dot(N, normalize(vec3(-uKey.x, -uKey.y, 0.35))), 0.0);
+  float hemi = 0.5 + 0.5 * N.z;
+  float rim = pow(1.0 - max(dot(N, V), 0.0), 2.2);
+  vec3 c = uInk * (0.05 + 0.74 * key + 0.1 * fill + 0.1 * hemi);
+  c = mix(c, c * uTint * 1.3, 0.3) + uTint * rim * 0.55;
+  float building = step(uCut, uTop);
+  float edge = 1.0 - smoothstep(0.0, 0.5 + uTop * 0.02, uCut - vP.z);
+  c = mix(c, uTint * 1.5, edge * building);
+  gl_FragColor = vec4(c, 1.0);
+}`;
+const LINE_VS = `
+attribute vec3 aP; uniform mat4 uMVP; varying vec2 vXY;
+void main() { vXY = aP.xy; gl_Position = uMVP * vec4(aP, 1.0); }`;
+const LINE_FS = `
+precision mediump float;
+varying vec2 vXY; uniform vec4 uColor; uniform float uHalf;
+void main() { gl_FragColor = vec4(uColor.rgb, uColor.a * (1.0 - smoothstep(uHalf * 0.55, uHalf * 1.05, length(vXY)))); }`;
+
+class Viewer {
+  constructor(canvas, { still = false } = {}) {
+    this.canvas = canvas;
+    this.still = still;
+    this.gl = canvas.getContext("webgl", { antialias: true, alpha: true, premultipliedAlpha: false,
+                                           preserveDrawingBuffer: still });
+    this.model = null;
+    this.key = "";
+    this.active = still;
+    this.reset();
+    this.cut = { from: 0, ms: 0, at: 0 };
+    if (!this.gl) return;
+    const gl = this.gl;
+    this.mesh = this.program(MESH_VS, MESH_FS);
+    this.line = this.program(LINE_VS, LINE_FS);
+    this.buf = { pos: gl.createBuffer(), nrm: gl.createBuffer(), grid: gl.createBuffer() };
+    gl.enable(gl.DEPTH_TEST);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    if (!still) {
+      this.bindPointer();
+      new ResizeObserver(() => this.kick()).observe(canvas);
+      document.addEventListener("visibilitychange", () => this.kick());
+    }
+  }
+  get ok() { return !!this.gl; }
+  reset() { this.yaw = -0.75; this.pitch = 0.38; this.zoom = 1; this.idleUntil = 0; }
+  program(vs, fs) {
+    const gl = this.gl;
+    const compile = (type, src) => {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, src);
+      gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+      return s;
+    };
+    const p = gl.createProgram();
+    gl.attachShader(p, compile(gl.VERTEX_SHADER, vs));
+    gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fs));
+    gl.linkProgram(p);
+    const cache = {};
+    return { p, at: (name) => cache[name] ??= (name[0] === "a" ? gl.getAttribLocation(p, name) : gl.getUniformLocation(p, name)) };
+  }
+  load(model, key, revealMs) {
+    if (!this.gl) return;
+    const gl = this.gl;
+    this.model = model;
+    this.key = key;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.buf.pos);
+    gl.bufferData(gl.ARRAY_BUFFER, model.pos, gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.buf.nrm);
+    gl.bufferData(gl.ARRAY_BUFFER, model.nrm, gl.STATIC_DRAW);
+    const size = V3.sub(model.hi, model.lo);
+    this.size = size;
+    this.shift = [-(model.lo[0] + model.hi[0]) / 2, -(model.lo[1] + model.hi[1]) / 2, -model.lo[2]];
+    // A 10 mm grid, or 1 mm under something small, reaching past the part.
+    const step = Math.max(size[0], size[1]) < 25 ? 1 : 10;
+    const half = Math.ceil(Math.max(size[0], size[1], size[2] * 0.6) * 0.95 / step) * step + step;
+    const lines = [];
+    for (let v = -half; v <= half + 1e-6; v += step) lines.push(-half, v, 0, half, v, 0, v, -half, 0, v, half, 0);
+    this.gridHalf = half;
+    this.gridCount = lines.length / 3;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.buf.grid);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(lines), gl.STATIC_DRAW);
+    this.cut = { ms: REDUCED_MOTION.matches ? 0 : revealMs, at: performance.now() };
+    this.kick();
+  }
+  clear() { this.model = null; this.key = ""; this.kick(); }
+  setActive(on) { this.active = on; this.kick(); }
+  kick() {
+    if (this.still || this.frame) return;
+    this.frame = requestAnimationFrame((t) => { this.frame = 0; this.draw(t); });
+  }
+  bindPointer() {
+    const c = this.canvas;
+    let drag = null;
+    c.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, y: e.clientY }; c.setPointerCapture(e.pointerId); });
+    c.addEventListener("pointermove", (e) => {
+      if (!drag) return;
+      this.yaw -= (e.clientX - drag.x) * 0.009;
+      this.pitch = Math.max(-0.15, Math.min(1.45, this.pitch + (e.clientY - drag.y) * 0.007));
+      drag = { x: e.clientX, y: e.clientY };
+      this.idleUntil = performance.now() + 3500;
+      this.kick();
+    });
+    const end = () => { drag = null; this.idleUntil = performance.now() + 3500; };
+    c.addEventListener("pointerup", end);
+    c.addEventListener("pointercancel", end);
+    c.addEventListener("wheel", (e) => {
+      if (!this.model) return;
+      e.preventDefault();
+      this.zoom = Math.max(0.5, Math.min(5, this.zoom * Math.exp(-e.deltaY * 0.0012)));
+      this.idleUntil = performance.now() + 3500;
+      this.kick();
+    }, { passive: false });
+    c.addEventListener("dblclick", () => { this.reset(); this.kick(); });
+  }
+  draw(now = performance.now()) {
+    const gl = this.gl;
+    if (!gl) return;
+    const c = this.canvas;
+    // An offscreen canvas (the thumbnails) has no layout; it draws at its own size.
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = this.still ? c.width : Math.max(1, Math.round(c.clientWidth * dpr));
+    const h = this.still ? c.height : Math.max(1, Math.round(c.clientHeight * dpr));
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    gl.viewport(0, 0, w, h);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    if (!this.model) return;
+
+    const moving = !this.still && this.active && document.visibilityState === "visible";
+    const turning = moving && !REDUCED_MOTION.matches && now > this.idleUntil;
+    if (turning && this.last) this.yaw += Math.min(64, now - this.last) * 0.00032;
+    this.last = now;
+
+    const [sx, sy, sz] = this.size;
+    const target = [0, 0, sz * 0.46];
+    const fov = 0.62;
+    const radius = 0.5 * Math.hypot(sx, sy, sz);
+    // Room above for the title and its caption, which sit over the view.
+    const dist = (radius / Math.sin(fov / 2)) * 1.22 / this.zoom;
+    const dir = [Math.cos(this.pitch) * Math.cos(this.yaw), Math.cos(this.pitch) * Math.sin(this.yaw), Math.sin(this.pitch)];
+    const eye = [target[0] + dir[0] * dist, target[1] + dir[1] * dist, target[2] + dir[2] * dist];
+    const mvp = M4.mul(M4.perspective(fov, w / h, dist / 200, dist * 20), M4.lookAt(eye, target, [0, 0, 1]));
+    const right = V3.norm(V3.cross(dir, [0, 0, 1]));
+    const keyLight = V3.norm([dir[0] + right[0] * 0.7, dir[1] + right[1] * 0.7, dir[2] + 0.9]);
+
+    const tint = cssRgb("--mode", [0.43, 0.77, 0.93]);
+    const ink = cssRgb("--ink", [0.84, 0.95, 1]);
+    const t = this.cut.ms ? Math.min(1, (now - this.cut.at) / this.cut.ms) : 1;
+    const eased = 1 - Math.pow(1 - t, 3);
+    const top = sz + 0.01;
+    const cut = t >= 1 ? top + 1 : -0.01 + eased * (top + 0.02);
+
+    // the plate
+    gl.useProgram(this.line.p);
+    gl.uniformMatrix4fv(this.line.at("uMVP"), false, mvp);
+    gl.uniform4f(this.line.at("uColor"), tint[0], tint[1], tint[2], 0.5);
+    gl.uniform1f(this.line.at("uHalf"), this.gridHalf);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.buf.grid);
+    gl.enableVertexAttribArray(this.line.at("aP"));
+    gl.vertexAttribPointer(this.line.at("aP"), 3, gl.FLOAT, false, 0, 0);
+    gl.depthMask(false);
+    gl.drawArrays(gl.LINES, 0, this.gridCount);
+    gl.depthMask(true);
+    gl.disableVertexAttribArray(this.line.at("aP"));
+
+    // the part
+    gl.useProgram(this.mesh.p);
+    gl.uniformMatrix4fv(this.mesh.at("uMVP"), false, mvp);
+    gl.uniform3fv(this.mesh.at("uShift"), this.shift);
+    gl.uniform3fv(this.mesh.at("uEye"), eye);
+    gl.uniform3fv(this.mesh.at("uKey"), keyLight);
+    gl.uniform3fv(this.mesh.at("uTint"), tint);
+    gl.uniform3fv(this.mesh.at("uInk"), ink);
+    gl.uniform1f(this.mesh.at("uCut"), cut);
+    gl.uniform1f(this.mesh.at("uTop"), top);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.buf.pos);
+    gl.enableVertexAttribArray(this.mesh.at("aP"));
+    gl.vertexAttribPointer(this.mesh.at("aP"), 3, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.buf.nrm);
+    gl.enableVertexAttribArray(this.mesh.at("aN"));
+    gl.vertexAttribPointer(this.mesh.at("aN"), 3, gl.FLOAT, false, 0, 0);
+    gl.drawArrays(gl.TRIANGLES, 0, this.model.triangles * 3);
+    gl.disableVertexAttribArray(this.mesh.at("aP"));
+    gl.disableVertexAttribArray(this.mesh.at("aN"));
+
+    if (moving && (turning || t < 1)) this.kick();
+  }
+  snapshot(model) {
+    this.load(model, "", 0);
+    this.draw();
+    return this.canvas.toDataURL("image/webp", 0.85);
+  }
+}
+
+const BENCH = { viewer: null, thumbs: null, models: new Map(), scad: new Map(), loading: "" };
+const WORKSHOP = { parts: [], selected: (hashView === "workshop" && hashSub) || PREFS.get("part", ""), filter: "all", timer: null,
+                   loading: false, known: null, picture: null, ask: null };
+const WORKING = ["queued", "drawing", "editing", "writing", "shaping", "cleaning", "rendering"];
+const isWorking = (part) => WORKING.includes(part.state);
+
+function seconds(n) {
+  if (n === undefined || n === null || !isFinite(n)) return "";
+  if (n < 10) return n.toFixed(1) + "s";
+  if (n < 60) return Math.round(n) + "s";
+  return Math.floor(n / 60) + "m " + String(Math.round(n % 60)).padStart(2, "0") + "s";
+}
+function whenMade(ts) {
+  return ts ? new Date(ts * 1000).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+}
+function sizeText(size) {
+  return size ? size.map((v) => (Math.round(v * 10) / 10).toString()).join(" × ") + " mm" : "";
+}
+function selectedPart() { return WORKSHOP.parts.find((p) => p.name === WORKSHOP.selected) || null; }
+
+function selectPart(name) {
+  WORKSHOP.selected = name;
+  PREFS.set("part", name);
+  // So the address names the part, and a link to it opens it.
+  if (currentView === "workshop") history.replaceState(null, "", "#workshop:" + name);
+  renderShelf();
+  renderBench();
+}
+
+async function refreshWorkshop() {
+  if (WORKSHOP.loading) return;
+  WORKSHOP.loading = true;
+  try {
+    const reply = await api("/api/exec", { cmd: "printer.parts", args: { limit: 200 } });
+    if (!reply.ok) {
+      $("shelf").innerHTML = '<p class="empty">' + escapeHtml(reply.error || "Could not list the parts.") + "</p>";
+      return;
+    }
+    const parts = (reply.result && reply.result.parts) || [];
+    // Follow a part the moment it starts, from here or from a voice.
+    const known = WORKSHOP.known;
+    const fresh = known ? parts.find((p) => isWorking(p) && !known.has(p.name)) : null;
+    const finished = new Set(known ? parts.filter((p) => p.state === "done" && WORKSHOP.parts.some(
+      (q) => q.name === p.name && isWorking(q))).map((p) => p.name) : []);
+    WORKSHOP.known = new Set(parts.map((p) => p.name));
+    WORKSHOP.parts = parts;
+    WORKSHOP.finished = finished;
+    if (fresh) WORKSHOP.selected = fresh.name;
+    if (!selectedPart()) WORKSHOP.selected = parts.length ? parts[0].name : "";
+    const working = parts.filter(isWorking).length;
+    const badge = $("n-workshop");
+    badge.textContent = working ? String(working) : "";
+    if (working) badge.dataset.tone = "live"; else delete badge.dataset.tone;
+    $("shelf-note").textContent = parts.length ? parts.length + " made" : "";
+    renderShelf();
+    renderBench();
+  } catch (err) {
+    $("shelf").innerHTML = '<p class="empty">' + escapeHtml(err.message) + "</p>";
+  } finally {
+    WORKSHOP.loading = false;
+    clearTimeout(WORKSHOP.timer);
+    const busy = WORKSHOP.parts.some(isWorking);
+    WORKSHOP.timer = setTimeout(refreshWorkshop, busy ? 1500 : currentView === "workshop" ? 10000 : 30000);
+  }
+}
+
+/* -- the bench --------------------------------------------------------------- */
+
+const STEPS = {
+  sculpt: [
+    ["drawing", "Picture", "drawn by OpenAI"],
+    ["shaping", "Shape", "Hunyuan3D-2"],
+    ["cleaning", "Clean up", "stood up and scaled"],
+    ["done", "Slicer", "ready to print"],
+  ],
+  make: [
+    ["writing", "Code", "OpenSCAD by the assistant"],
+    ["rendering", "Render", "OpenSCAD"],
+    ["done", "Slicer", "ready to print"],
+  ],
+  // Versions: what each kind of adjustment goes through.
+  picture: [
+    ["editing", "Edit picture", "only what was asked"],
+    ["shaping", "Shape", "Hunyuan3D-2"],
+    ["cleaning", "Clean up", "stood up and scaled"],
+    ["done", "Slicer", "ready to print"],
+  ],
+  code: [
+    ["writing", "Edit code", "rewritten by a model"],
+    ["rendering", "Render", "OpenSCAD"],
+    ["done", "Slicer", "ready to print"],
+  ],
+  resize: [
+    ["cleaning", "Rescale", "no AI needed"],
+    ["done", "Slicer", "ready to print"],
+  ],
+};
+const SAYING = {
+  queued: "Getting started",
+  drawing: "Drawing the reference picture",
+  editing: "Editing the picture",
+  writing: "Rewriting the OpenSCAD",
+  shaping: "Turning the picture into a mesh",
+  cleaning: "Cleaning it up, standing it on the plate and scaling it",
+  rendering: "Rendering the OpenSCAD",
+};
+
+function renderSteps(part) {
+  const steps = STEPS[part.mode] || STEPS[part.kind] || STEPS.sculpt;
+  const stages = part.stages || {};
+  const now = Date.now() / 1000;
+  const order = steps.map((s) => s[0]);
+  let at = order.indexOf(part.state === "queued" ? order[0] : part.state);
+  if (part.state === "failed") {
+    const tried = order.filter((k) => stages[k]);
+    at = tried.length ? order.indexOf(tried[tried.length - 1]) : 0;
+  }
+  const total = part.finished && part.created ? part.finished - part.created : null;
+  $("steps").innerHTML = steps.map(([key, label, what], i) => {
+    const span = stages[key];
+    let state = "", time = "";
+    if (part.state === "done") state = "done";
+    else if (part.state === "failed") state = i < at ? "done" : i === at ? "bad" : "";
+    else state = i < at ? "done" : i === at ? "now" : "";
+    if (span && span.length === 2) time = seconds(span[1] - span[0]);
+    else if (span && state === "now") time = seconds(now - span[0]) + "…";
+    if (key === "drawing" && part.source && part.source !== "drawn") {
+      state = state === "bad" ? "bad" : "skip";
+      what = part.source === "redrawn" ? "reused from before" : "your picture";
+    }
+    if (key === "writing" && part.mode !== "code") { state = part.state === "failed" ? state : "done"; what = "by the assistant"; }
+    if (key === "cleaning" && part.faces) what = Number(part.faces).toLocaleString() + " triangles";
+    const sheet = { "front-back": "front & back", "front-side-back": "front, side & back" }[part.views];
+    if (key === "drawing" && sheet && (!part.source || part.source === "drawn")) what = sheet + ", by OpenAI";
+    if (key === "editing" && sheet) what = "every view, only what was asked";
+    if (key === "shaping" && part.shaper) what = part.shaper === "local" ? "Hunyuan3D-2mv on this PC" : "Hunyuan3D on Hugging Face";
+    if (key === "done" && part.state === "done") time = total ? "in " + seconds(total) : "";
+    return '<li class="step" data-state="' + state + '"><b>' + escapeHtml(label) + "</b>" +
+      "<span>" + escapeHtml(what) + "</span>" +
+      '<span class="t">' + escapeHtml(time || (state === "now" ? "working…" : " ")) + "</span></li>";
+  }).join("");
+}
+
+function dimsHtml(size) {
+  return ["X", "Y", "Z"].map((a, i) => "<span><b>" + a + "</b>" + (Math.round(size[i] * 10) / 10) + " mm</span>").join("");
+}
+
+function renderBench() {
+  const part = selectedPart();
+  const viewer = BENCH.viewer;
+  $("bench-empty").hidden = !!part;
+  $("bench-wait").hidden = true;
+  if (!part) {
+    for (const id of ["bench-title", "bench-sub", "bench-dims", "bench-flag", "bench-hint", "bench-note"]) $(id).textContent = "";
+    $("steps").innerHTML = "";
+    $("bench-actions").innerHTML = "";
+    $("ref").innerHTML = '<p class="empty">Pick a part to see where it came from.</p>';
+    $("ref").dataset.key = "";
+    $("slice").innerHTML = '<p class="empty">Pick a part to see how to slice it.</p>';
+    $("slice").dataset.key = "";
+    $("slice-note").textContent = "";
+    if (viewer) viewer.clear();
+    return;
+  }
+  $("bench-title").textContent = part.title;
+  $("bench-sub").textContent = part.parent
+    ? "v" + part.version + " · “" + (part.change || "adjusted") + "” · " + whenMade(part.created)
+    : part.kind === "make"
+      ? "Designed in OpenSCAD · " + whenMade(part.created)
+      : (part.prompt ? "“" + part.prompt + "”" : "Sculpted from a picture") + " · " + whenMade(part.created);
+  $("bench-dims").innerHTML = part.size_mm ? dimsHtml(part.size_mm) : "";
+  const flag = $("bench-flag");
+  flag.textContent = part.state !== "done" || part.watertight === undefined ? "" : part.watertight ? "Solid" : "Has gaps";
+  flag.dataset.tone = part.watertight === false ? "warn" : "ok";
+  $("bench-note").textContent = part.state === "done" ? (part.kind === "make" ? "designed" : "sculpted")
+    : part.state === "failed" ? "failed" : "working";
+  renderSteps(part);
+  renderActions(part);
+  renderAdjust(part);
+  renderRef(part);
+  renderSlicing(part);
+
+  if (part.state === "done" && part.files.includes("stl")) {
+    $("bench-hint").textContent = viewer && viewer.ok ? "drag to turn · scroll to zoom · double-click to reset" : "";
+    showModel(part);
+    return;
+  }
+  // Working, or failed: the picture it started from, and what it is doing.
+  $("bench-hint").textContent = "";
+  if (viewer) viewer.clear();
+  $("bench-wait").hidden = false;
+  const scan = $("bench-scan");
+  const src = part.picture ? partUrl(part.name, part.picture) : "";
+  if (src) {
+    if (scan.dataset.src !== src) { scan.innerHTML = '<img alt="The picture it is working from">'; scan.firstChild.src = src; scan.dataset.src = src; }
+  } else if (scan.dataset.src !== "none") {
+    scan.innerHTML = '<div class="scan-empty"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="38"/><circle cx="50" cy="50" r="24"/><path d="M12 50h76M50 12v76"/></svg></div>';
+    scan.dataset.src = "none";
+  }
+  scan.classList.toggle("stopped", part.state === "failed");
+  scan.dataset.views = part.views || "front";
+  const say = $("bench-say");
+  if (part.state === "failed") {
+    say.dataset.tone = "bad";
+    say.textContent = part.error || "It didn't work.";
+  } else {
+    delete say.dataset.tone;
+    const span = (part.stages || {})[part.state];
+    say.innerHTML = escapeHtml(SAYING[part.state] || "Working") + "…" +
+      (span ? "<i>" + escapeHtml(seconds(Date.now() / 1000 - span[0])) + "</i>" : "");
+  }
+}
+
+async function loadModel(part) {
+  const key = part.name + ":" + (part.faces || "") + ":" + (part.finished || "");
+  if (BENCH.models.has(key)) return { key, model: BENCH.models.get(key) };
+  const model = parseStl(await partBytes(part.name, "stl"));
+  BENCH.models.set(key, model);
+  while (BENCH.models.size > 4) BENCH.models.delete(BENCH.models.keys().next().value);
+  return { key, model };
+}
+
+async function showModel(part) {
+  const viewer = BENCH.viewer;
+  if (!viewer || !viewer.ok) {
+    $("bench-empty").hidden = false;
+    $("bench-empty").textContent = "This browser can't draw 3D here (WebGL is off), but the part is ready - open it in the slicer.";
+    return;
+  }
+  const want = part.name;
+  if (viewer.key.startsWith(want + ":") || BENCH.loading === want) return;
+  BENCH.loading = want;
+  try {
+    const { key, model } = await loadModel(part);
+    if (WORKSHOP.selected !== want) return;
+    // A part that has just finished builds up from the plate, slowly enough
+    // to watch; picking one from the shelf builds it quickly.
+    viewer.load(model, key, WORKSHOP.finished && WORKSHOP.finished.has(want) ? 2600 : 900);
+    if (!part.size_mm) $("bench-dims").innerHTML = dimsHtml(V3.sub(model.hi, model.lo));
+    BENCH.height = model.hi[2] - model.lo[2];
+    const heightBox = $("adjust-height");
+    if ($("adjust-form").dataset.part === want && !heightBox.value) heightBox.value = Math.round(BENCH.height);
+  } catch (err) {
+    $("bench-hint").textContent = "couldn't load the model: " + err.message;
+  } finally {
+    if (BENCH.loading === want) BENCH.loading = "";
+  }
+}
+
+function renderActions(part) {
+  const box = $("bench-actions");
+  box.innerHTML = "";
+  const button = (label, cls, handler) => box.append(el("button", { class: "btn " + cls, type: "button", text: label, onclick: handler }));
+  if (part.state === "done") {
+    button("Open in slicer", "btn-primary", () => partCommand("printer.open", { name: part.name }));
+    box.append(el("a", { class: "btn btn-quiet", href: partUrl(part.name, "stl"),
+                         download: part.title.replace(/[^\w -]+/g, "").trim() + ".stl", text: "Download STL" }));
+    if (part.kind === "sculpt" && part.picture) {
+      button("Another take", "btn-quiet", () => sculptAgain(part));
+    }
+    if (part.kind === "sculpt" && part.prompt) {
+      button("Remix the words", "btn-quiet", () => { $("sculpt-prompt").value = part.prompt; $("sculpt-prompt").focus(); });
+    }
+  } else if (part.state === "failed" && part.picture) {
+    button("Try again", "btn-primary", () => sculptAgain(part));
+  }
+  if (!isWorking(part)) {
+    const del = el("button", { class: "btn btn-danger row-end", type: "button", text: "Delete",
+                               onclick: () => forgetPart(part) });
+    box.append(del);
+  } else {
+    box.append(el("span", { class: "hint", text: "It will say when it's done - you can leave this page." }));
+  }
+}
+
+function renderAdjust(part) {
+  const form = $("adjust-form");
+  const can = part.state === "done" &&
+    (part.kind === "make" ? part.files.includes("scad") : part.files.includes("stl"));
+  form.hidden = !can;
+  $("bench-hint").hidden = false;
+  if (!can || form.dataset.part === part.name) return;
+  // A different part: start the form afresh for it.
+  form.dataset.part = part.name;
+  const sculpted = part.kind !== "make";
+  const drawn = sculpted && !!part.picture;
+  $("adjust-change").value = "";
+  $("adjust-change").disabled = sculpted && !drawn;
+  $("adjust-change").placeholder = !sculpted ? "walls 2 mm thicker, add a 5 mm hole for a keyring…"
+    : drawn ? "give it a party hat, make the ears pointier…" : "only its height can change - it has no picture";
+  $("adjust-height-wrap").hidden = !sculpted;
+  $("adjust-height").value = part.size_mm ? Math.round(part.size_mm[2]) : "";
+  const hint = $("adjust-hint");
+  delete hint.dataset.tone;
+  hint.textContent = !sculpted
+    ? "Rewrites the OpenSCAD and renders it again, in a few seconds. The original stays in the collection."
+    : "Edits the picture and shapes it again, about a minute - small changes keep the rest. " +
+      "A new height on its own just rescales it. The original stays in the collection.";
+}
+
+$("adjust-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const part = selectedPart();
+  if (!part) return;
+  const hint = $("adjust-hint");
+  const change = $("adjust-change").value.trim();
+  const args = { name: part.name, open: false };
+  if (change) args.change = change;
+  if (part.kind !== "make") {
+    const now = part.size_mm ? part.size_mm[2] : BENCH.height;
+    const wanted = Number($("adjust-height").value);
+    if (wanted && (!now || Math.abs(wanted - now) >= 0.5)) args.height_mm = wanted;
+  }
+  if (!args.change && !args.height_mm) {
+    hint.dataset.tone = "bad";
+    hint.textContent = part.kind === "make" ? "Say what to change." : "Say what to change, or set a new height.";
+    $("adjust-change").focus();
+    return;
+  }
+  const go = $("adjust-go");
+  go.disabled = true;
+  try {
+    const reply = await api("/api/exec", { cmd: "printer.adjust", args });
+    if (!reply.ok) {
+      hint.dataset.tone = "bad";
+      hint.textContent = reply.error;
+      log(reply);
+      return;
+    }
+    if (reply.result && reply.result.name) WORKSHOP.selected = reply.result.name;
+    refreshWorkshop();
+  } finally {
+    go.disabled = false;
+  }
+});
+
+async function partCommand(cmd, args) {
+  const reply = await api("/api/exec", { cmd, args });
+  if (!reply.ok) log(reply);
+  return reply;
+}
+
+async function sculptAgain(part) {
+  const reply = await partCommand("printer.sculpt", { again: part.name, open: false });
+  if (reply.ok && reply.result && reply.result.name) WORKSHOP.selected = reply.result.name;
+  sculptNote(reply.ok ? "" : reply.error, !reply.ok);
+  refreshWorkshop();
+}
+
+async function forgetPart(part) {
+  if (!confirm("Delete " + part.title + "? Its STL, picture and mesh go with it.")) return;
+  const reply = await partCommand("printer.forget", { name: part.name });
+  if (reply.ok) {
+    const index = WORKSHOP.parts.findIndex((p) => p.name === part.name);
+    const next = WORKSHOP.parts[index + 1] || WORKSHOP.parts[index - 1];
+    WORKSHOP.selected = next ? next.name : "";
+  }
+  refreshWorkshop();
+}
+
+async function scadOf(name) {
+  if (!BENCH.scad.has(name)) {
+    try {
+      BENCH.scad.set(name, new TextDecoder().decode(await partBytes(name, "scad")));
+    } catch (err) {
+      return null;  // the code is a nicety; the part is what matters
+    }
+  }
+  return BENCH.scad.get(name);
+}
+
+$("ref").addEventListener("click", (event) => {
+  const link = event.target.closest("[data-goto]");
+  if (link) selectPart(link.dataset.goto);
+});
+
+async function renderRef(part) {
+  const box = $("ref");
+  const refKey = part.name + ":" + part.state + ":" + (part.picture || "") + ":" + (part.faces || "");
+  if (box.dataset.key === refKey) return;
+  box.dataset.key = refKey;
+  const facts = [
+    ["Made", whenMade(part.created)],
+    ["Size", sizeText(part.size_mm)],
+    ["Asked for", part.height_mm ? part.height_mm + " mm tall" : ""],
+    ["Triangles", part.faces ? Number(part.faces).toLocaleString() : ""],
+    ["Solid", part.watertight === undefined ? "" : part.watertight ? "yes, watertight" : "no - let the slicer repair it"],
+    ["Views", part.kind === "sculpt" ? ({ "front-back": "front and back", "front-side-back": "front, side and back" }[part.views] || "one") +
+      (part.views === "front-side-back" ? (part.side ? " (side seen from the " + part.side + ")" : " (side left out - its facing was unclear)") : "") : ""],
+    ["Shaped", part.shaper ? (part.shaper === "local" ? "on this PC's GPU" : "on Hugging Face") : ""],
+    ["Took", part.finished && part.created && part.state === "done" ? seconds(part.finished - part.created) : ""],
+  ].filter(([, v]) => v);
+  const dl = '<dl class="ref-facts">' + facts.map(([k, v]) => "<dt>" + k + "</dt><dd>" + escapeHtml(v) + "</dd>").join("") + "</dl>";
+  $("ref-note").textContent = part.parent ? "version " + part.version
+    : part.kind === "make" ? "OpenSCAD" : part.source === "drawn" ? "drawn, then shaped" : "from a picture";
+  const parent = part.parent ? WORKSHOP.parts.find((p) => p.name === part.parent) : null;
+  const lineage = part.parent
+    ? '<p class="lineage">Version ' + escapeHtml(String(part.version || 2)) + " of " +
+      (parent ? '<button class="link" type="button" data-goto="' + escapeHtml(parent.name) + '">' +
+                escapeHtml(parent.title + (parent.version ? " v" + parent.version : "")) + "</button>"
+              : escapeHtml(part.title) + " (since deleted)") +
+      (part.change ? ": <q>" + escapeHtml(part.change) + "</q>" : "") + "</p>"
+    : "";
+  if (part.kind === "make") {
+    const key = part.name;
+    box.innerHTML = lineage + '<pre class="ref-code" id="ref-code">Loading the code…</pre>' + dl;
+    const code = await scadOf(key);
+    const before = parent && part.mode === "code" ? await scadOf(parent.name) : null;
+    if (WORKSHOP.selected !== key || !$("ref-code")) return;
+    if (code === null) { $("ref-code").textContent = "The code isn't there any more."; return; }
+    // What the adjustment changed, marked: any line the parent did not have.
+    const had = before === null ? null : new Set(before.split("\n").map((l) => l.trim()));
+    $("ref-code").innerHTML = code.replace(/\n$/, "").split("\n").map((line) =>
+      had && !had.has(line.trim()) ? '<span class="add">' + escapeHtml(line || " ") + "</span>" : escapeHtml(line) + "\n"
+    ).join("");
+    return;
+  }
+  const pic = part.picture ? partUrl(part.name, part.picture) : "";
+  const was = part.mode === "picture" && parent && parent.picture ? partUrl(parent.name, parent.picture) : "";
+  if (was && pic) {
+    // An edited picture: what it was, and what it became.
+    box.innerHTML = lineage + '<div class="ref-pair" data-views="' + escapeHtml(part.views || "front") + '"><figure><img class="ref-pic" alt="Before"><figcaption>Before</figcaption></figure>' +
+      '<figure><img class="ref-pic" alt="After"><figcaption>After</figcaption></figure></div>' +
+      (part.prompt ? '<p class="ref-quote">' + escapeHtml(part.prompt) + "</p>" : "") + dl;
+    const [a, b] = box.querySelectorAll(".ref-pic");
+    a.src = was;
+    b.src = pic;
+    return;
+  }
+  box.innerHTML = lineage + (pic ? '<img class="ref-pic" alt="The picture the part was shaped from">' : "") +
+    (part.prompt ? '<p class="ref-quote">' + escapeHtml(part.prompt) + "</p>" : "") + dl;
+  if (pic) box.querySelector(".ref-pic").src = pic;
+}
+
+/* Slicer settings, worked out from the part's shape. Stored with a part when
+   it is made; a part from before that asks printer.settings, once. */
+const SLICING_ASKED = new Set();
+
+function renderSlicing(part) {
+  const box = $("slice");
+  const found = part.slicing;
+  const key = part.name + ":" + part.state + ":" + (found ? found.v + found.material + found.summary : "");
+  if (box.dataset.key === key) return;
+  box.dataset.key = key;
+  if (part.state !== "done" || !part.files.includes("stl")) {
+    $("slice-note").textContent = "";
+    box.innerHTML = '<p class="empty">' + (isWorking(part) ? "Worked out once it's made." : "Nothing to slice - it didn't finish.") + "</p>";
+    return;
+  }
+  if (!SLICING_ASKED.has(part.name)) {
+    // Once a page: the server keeps them, and works them out again only
+    // when the rules or printer.filament have changed since.
+    SLICING_ASKED.add(part.name);
+    api("/api/exec", { cmd: "printer.settings", args: { name: part.name } }).then((reply) => {
+      const known = WORKSHOP.parts.find((p) => p.name === part.name) || part;
+      if (reply.ok) known.slicing = reply.result;
+      if (WORKSHOP.selected !== part.name) return;
+      if (reply.ok) { renderSlicing(known); return; }
+      if (!known.slicing) box.innerHTML = '<p class="empty">' + escapeHtml(reply.error || "Couldn't work them out.") + "</p>";
+    }).catch(() => SLICING_ASKED.delete(part.name));
+  }
+  if (!found) {
+    $("slice-note").textContent = "";
+    box.innerHTML = '<p class="empty">Working them out…</p>';
+    return;
+  }
+  $("slice-note").textContent = found.material;
+  const groups = [];
+  for (const s of found.settings || []) {
+    let group = groups.find((g) => g.name === s.group);
+    if (!group) groups.push(group = { name: s.group, rows: [] });
+    group.rows.push(s);
+  }
+  box.innerHTML =
+    '<p class="slice-sum">' + escapeHtml(found.summary) + "</p>" +
+    ((found.notes || []).length ? '<ul class="slice-notes">' + found.notes.map((n) => "<li>" + escapeHtml(n) + "</li>").join("") + "</ul>" : "") +
+    groups.map((g) => '<h3 class="slice-group adjust-tag">' + escapeHtml(g.name) + '</h3><ul class="slice-rows">' +
+      g.rows.map((s) => '<li class="slice-row"><b>' + escapeHtml(s.name) + "</b><span>" + escapeHtml(s.value) +
+        "</span>" + (s.why ? "<small>" + escapeHtml(s.why) + "</small>" : "") + "</li>").join("") + "</ul>").join("") +
+    '<p class="slice-foot">Changes from Elegoo Slicer\'s Centauri Carbon 2 profile; anything not listed, leave as it is. ' +
+    "The filament is printer.filament in the config.</p>";
+}
+
+/* -- the collection ---------------------------------------------------------- */
+
+const THUMB_KEY = (part) => "thumb." + part.name + "." + (part.faces || "") + "." + Math.round(part.finished || 0);
+const thumbQueue = [];
+let thumbBusy = false;
+
+function thumbFor(part) {
+  const key = THUMB_KEY(part);
+  return PREFS.get(key, "") || "";
+}
+
+async function drainThumbs() {
+  if (thumbBusy) return;
+  thumbBusy = true;
+  try {
+    while (thumbQueue.length) {
+      const part = thumbQueue.shift();
+      const key = THUMB_KEY(part);
+      if (PREFS.get(key, "")) continue;
+      if (!BENCH.thumbs) {
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = 320;
+        BENCH.thumbs = new Viewer(canvas, { still: true });
+      }
+      if (!BENCH.thumbs.ok) return;
+      let url;
+      try {
+        const model = parseStl(await partBytes(part.name, "stl"));
+        BENCH.thumbs.reset();
+        BENCH.thumbs.pitch = 0.32;
+        url = BENCH.thumbs.snapshot(model);
+      } catch (err) { continue; }
+      PREFS.set(key, url);
+      for (const img of document.querySelectorAll('img[data-thumb="' + CSS.escape(part.name) + '"]')) img.src = url;
+    }
+  } finally { thumbBusy = false; }
+}
+
+const thumbWatch = "IntersectionObserver" in window ? new IntersectionObserver((entries) => {
+  for (const entry of entries) {
+    if (!entry.isIntersecting) continue;
+    thumbWatch.unobserve(entry.target);
+    const part = WORKSHOP.parts.find((p) => p.name === entry.target.dataset.thumb);
+    if (part) { thumbQueue.push(part); drainThumbs(); }
+  }
+}, { rootMargin: "200px" }) : null;
+
+const GHOST = '<svg class="ghost" viewBox="0 0 100 100" aria-hidden="true"><path d="M50 8 88 30v40L50 92 12 70V30z M12 30l38 22 38-22 M50 52v40"/></svg>';
+
+function renderShelf() {
+  const shelf = $("shelf");
+  const shown = WORKSHOP.parts.filter((p) => WORKSHOP.filter === "all" || p.kind === WORKSHOP.filter);
+  // Rebuilt only when something on it changed: while a part is being made
+  // this is asked every second and a half, and a rebuilt tile reloads.
+  const key = WORKSHOP.selected + "|" + WORKSHOP.filter + "|" +
+    shown.map((p) => p.name + ":" + p.state + ":" + (p.updated || "") + ":" + (p.picture || "")).join(",");
+  if (shelf.dataset.key === key) return;
+  shelf.dataset.key = key;
+  if (!shown.length) {
+    shelf.innerHTML = '<p class="empty">' + (WORKSHOP.parts.length ? "Nothing of that kind yet." :
+      "Nothing made yet. Sculpt something above, or ask for a part out loud.") + "</p>";
+    return;
+  }
+  shelf.innerHTML = "";
+  for (const part of shown) {
+    const working = isWorking(part);
+    const tile = el("button", { class: "tile", type: "button", "data-state": part.state, "data-working": working ? "yes" : "no",
+                                "aria-pressed": String(part.name === WORKSHOP.selected),
+                                onclick: () => selectPart(part.name) });
+    const view = el("span", { class: "tile-view" });
+    if (part.state === "done" && part.files.includes("stl")) {
+      const img = el("img", { alt: "", "data-thumb": part.name });
+      const cached = thumbFor(part);
+      if (cached) img.src = cached;
+      else if (thumbWatch) thumbWatch.observe(img);
+      view.append(img);
+    } else if (part.picture) {
+      const img = el("img", { alt: "", class: "photo" });
+      img.src = partUrl(part.name, part.picture);
+      view.append(img);
+    } else {
+      view.innerHTML = GHOST;
+    }
+    const kind = working ? (SAYING[part.state] || "Working").split(" ")[0] + "…"
+      : part.state === "failed" ? "Failed" : (part.kind === "make" ? "Designed" : "Sculpted") +
+        (part.version > 1 ? " · v" + part.version : "");
+    view.append(el("span", { class: "tile-kind", text: kind }));
+    const meta = el("span", { class: "tile-meta" },
+      el("b", { text: part.title }),
+      el("i", { text: part.state === "done" ? sizeText(part.size_mm) || whenMade(part.created)
+                     : part.state === "failed" ? (part.error || "failed") : whenMade(part.created) }));
+    tile.append(view, meta);
+    shelf.append(tile);
+  }
+}
+
+for (const button of document.querySelectorAll(".shelf-filter button")) {
+  button.addEventListener("click", () => {
+    WORKSHOP.filter = button.dataset.filter;
+    for (const other of document.querySelectorAll(".shelf-filter button")) other.setAttribute("aria-pressed", String(other === button));
+    renderShelf();
+  });
+}
+
+/* -- the form ---------------------------------------------------------------- */
+
+function sculptNote(text, bad) {
+  const note = $("sculpt-note");
+  note.textContent = text || "";
+  note.style.color = bad ? "var(--rose)" : "";
+}
+
+function titleFrom(prompt, fallback) {
+  const words = (prompt || "").replace(/[,.;:!?].*$/s, "").trim()
+    .replace(/^(a|an|the|some|my)\s+/i, "").split(/\s+/).filter(Boolean).slice(0, 4).join(" ");
+  const title = words || fallback || "Sculpture";
+  return title.charAt(0).toUpperCase() + title.slice(1);
+}
+
+function pickPicture(file) {
+  if (!file) return;
+  if (!/\.(png|jpe?g|webp)$/i.test(file.name)) { sculptNote("That needs to be a PNG, JPEG or WebP picture.", true); return; }
+  WORKSHOP.picture = file;
+  const img = $("sculpt-pick-img");
+  if (img.src.startsWith("blob:")) URL.revokeObjectURL(img.src);
+  img.src = URL.createObjectURL(file);
+  $("sculpt-pick-name").textContent = file.name;
+  $("sculpt-pick").hidden = false;
+  sculptNote("");
+}
+
+function clearPicture() {
+  WORKSHOP.picture = null;
+  $("sculpt-pick").hidden = true;
+  $("sculpt-file").value = "";
+}
+
+$("sculpt-pick-btn").addEventListener("click", () => $("sculpt-file").click());
+$("sculpt-file").addEventListener("change", (e) => pickPicture(e.target.files && e.target.files[0]));
+$("sculpt-pick-clear").addEventListener("click", clearPicture);
+const sculptForm = $("sculpt-form");
+sculptForm.addEventListener("dragover", (e) => { e.preventDefault(); sculptForm.dataset.drop = "yes"; });
+sculptForm.addEventListener("dragleave", () => { delete sculptForm.dataset.drop; });
+sculptForm.addEventListener("drop", (e) => {
+  e.preventDefault();
+  delete sculptForm.dataset.drop;
+  pickPicture(e.dataTransfer.files && e.dataTransfer.files[0]);
+});
+$("sculpt-prompt").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sculptForm.requestSubmit(); }
+});
+
+/* Questions before sculpting. A short request is sent to printer.brief, which
+   answers with the description so far and what is still worth asking; each
+   round adds the answers given. WORKSHOP.ask holds the interview while it is
+   open: the words as typed, every answer so far, and the latest brief. */
+const ASK_ROUNDS = 3;
+
+function askBusy(busy) {
+  for (const id of ["sculpt-go", "sculpt-more", "sculpt-skip"]) $(id).disabled = busy;
+}
+
+function closeAsk() {
+  WORKSHOP.ask = null;
+  $("sculpt-ask").hidden = true;
+  $("sculpt-questions").replaceChildren();
+  $("sculpt-go").textContent = "Sculpt";
+}
+
+function showAsk(found) {
+  const ask = WORKSHOP.ask;
+  ask.brief = found;
+  ask.rounds += 1;
+  $("sculpt-so-far").textContent = found.description;
+  if (found.height_mm) $("sculpt-height").value = Math.round(found.height_mm);
+  const box = $("sculpt-questions");
+  box.replaceChildren();
+  // Built from text nodes only: the questions come from a model.
+  for (const q of found.questions || []) {
+    const set = document.createElement("fieldset");
+    set.className = "ask-q";
+    set.dataset.question = q.question;
+    const legend = document.createElement("legend");
+    legend.textContent = q.question;
+    const opts = document.createElement("div");
+    opts.className = "ask-opts";
+    const own = document.createElement("input");
+    own.className = "field";
+    own.type = "text";
+    own.maxLength = 200;
+    own.placeholder = "Or in your own words";
+    own.setAttribute("aria-label", q.question);
+    for (const option of q.options || []) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = option;
+      b.setAttribute("aria-pressed", "false");
+      b.addEventListener("click", () => {
+        const on = b.getAttribute("aria-pressed") !== "true";
+        for (const other of opts.children) other.setAttribute("aria-pressed", "false");
+        b.setAttribute("aria-pressed", String(on));
+        if (on) own.value = "";
+      });
+      opts.appendChild(b);
+    }
+    own.addEventListener("input", () => {
+      if (own.value.trim()) for (const b of opts.children) b.setAttribute("aria-pressed", "false");
+    });
+    set.append(legend, opts, own);
+    box.appendChild(set);
+  }
+  if (!(found.questions || []).length) {
+    const none = document.createElement("p");
+    none.className = "ask-none";
+    none.textContent = "Nothing else worth asking - it's ready to sculpt.";
+    box.appendChild(none);
+  }
+  $("sculpt-more").hidden = ask.rounds >= ASK_ROUNDS || !(found.questions || []).length;
+  $("sculpt-ask").hidden = false;
+  $("sculpt-go").textContent = "Sculpt it";
+}
+
+function askAnswers() {
+  /* This round's answers: a chosen option, or the words typed instead. */
+  const found = [];
+  for (const set of $("sculpt-questions").querySelectorAll(".ask-q")) {
+    const typed = set.querySelector("input").value.trim();
+    const picked = set.querySelector('button[aria-pressed="true"]');
+    const answer = typed || (picked ? picked.textContent : "");
+    if (answer) found.push({ question: set.dataset.question, answer });
+  }
+  return found;
+}
+
+async function brief(args) {
+  const reply = await api("/api/exec", { cmd: "printer.brief", args });
+  if (!reply.ok) { sculptNote(reply.error, true); log(reply); return null; }
+  return reply.result;
+}
+
+async function sculptNow(args) {
+  const reply = await api("/api/exec", { cmd: "printer.sculpt", args });
+  if (!reply.ok) { sculptNote(reply.error, true); log(reply); return; }
+  sculptNote("Under way.");
+  $("sculpt-prompt").value = "";
+  clearPicture();
+  closeAsk();
+  if (reply.result && reply.result.name) WORKSHOP.selected = reply.result.name;
+  refreshWorkshop();
+}
+
+$("sculpt-more").addEventListener("click", async () => {
+  const ask = WORKSHOP.ask;
+  if (!ask) return;
+  ask.answers.push(...askAnswers());
+  askBusy(true);
+  sculptNote("Thinking of more…");
+  try {
+    const found = await brief({ prompt: ask.request, answers: ask.answers, questions: 3 });
+    if (found) { sculptNote(""); showAsk(found); }
+  } catch (err) {
+    sculptNote(err.message, true);
+  } finally {
+    askBusy(false);
+  }
+});
+
+$("sculpt-skip").addEventListener("click", async () => {
+  const ask = WORKSHOP.ask;
+  if (!ask) return;
+  askBusy(true);
+  try {
+    await sculptNow({ prompt: ask.request, title: titleFrom(ask.request), height_mm: $("sculpt-height").value || "", open: false });
+  } catch (err) {
+    sculptNote(err.message, true);
+  } finally {
+    askBusy(false);
+  }
+});
+
+// Changing the words starts the questions over.
+$("sculpt-prompt").addEventListener("input", () => {
+  if (WORKSHOP.ask && $("sculpt-prompt").value.trim() !== WORKSHOP.ask.request) closeAsk();
+});
+
+sculptForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const prompt = $("sculpt-prompt").value.trim();
+  const file = WORKSHOP.picture;
+  if (!prompt && !file) { sculptNote("Describe something, or pick a picture.", true); $("sculpt-prompt").focus(); return; }
+  askBusy(true);
+  try {
+    const args = { prompt, height_mm: $("sculpt-height").value || "", open: false,
+                   title: titleFrom(prompt, file ? file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ") : "") };
+    if (file) {
+      // A picture already says what it looks like: nothing to ask.
+      sculptNote("Sending the picture…");
+      const headers = { "X-CA-UI": "1", "X-File-Name": file.name, "Content-Type": "application/octet-stream" };
+      if (BOOT.token) headers["X-CA-Token"] = BOOT.token;
+      const response = await fetch("/api/prints/upload", { method: "POST", headers, body: file, cache: "no-store" });
+      const saved = await response.json().catch(() => ({ ok: false, error: "bad reply" }));
+      if (!saved.ok) { sculptNote(saved.error, true); return; }
+      args.image = saved.path;
+      await sculptNow(args);
+      return;
+    }
+    // "Remix the words" changes the text without an input event.
+    if (WORKSHOP.ask && WORKSHOP.ask.request !== prompt) closeAsk();
+    let ask = WORKSHOP.ask;
+    if (!ask) {
+      // The first press asks; it only sculpts straight away when there is nothing to ask.
+      sculptNote("Thinking of questions…");
+      const found = await brief({ prompt });
+      if (!found) return;
+      WORKSHOP.ask = ask = { request: prompt, answers: [], rounds: 0, brief: null };
+      if ((found.questions || []).length) { sculptNote(""); showAsk(found); return; }
+      ask.brief = found;
+    } else {
+      const fresh = askAnswers();
+      if (fresh.length) {
+        // The last answers are folded in before sculpting, with no more asked.
+        ask.answers.push(...fresh);
+        sculptNote("Putting it together…");
+        const found = await brief({ prompt: ask.request, answers: ask.answers, questions: 0 });
+        if (!found) return;
+        ask.brief = found;
+        if (found.height_mm) $("sculpt-height").value = Math.round(found.height_mm);
+      }
+    }
+    const chosen = ask.brief;
+    await sculptNow({ prompt: chosen.description, title: chosen.title || titleFrom(ask.request),
+                      height_mm: $("sculpt-height").value || "", open: false });
+  } catch (err) {
+    sculptNote(err.message, true);
+  } finally {
+    askBusy(false);
+  }
+});
+
+BENCH.viewer = new Viewer($("bench-canvas"));
+if (!BENCH.viewer.ok) $("bench-hint").textContent = "3D preview needs WebGL";
 
 (async function start() {
   showView(currentView);

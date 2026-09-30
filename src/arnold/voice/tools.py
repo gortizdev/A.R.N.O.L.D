@@ -49,7 +49,7 @@ PC_COMMANDS = [
     "schedule.add", "schedule.list", "schedule.cancel",
     "timer.set", "timer.list", "timer.cancel",
     "todo.list", "todo.add", "todo.done", "todo.remove", "todo.sync",
-    "todo.mail_login", "todo.mail_status", "todo.projects", "todo.link", "todo.send",
+    "todo.projects", "todo.link", "todo.send",
     "control.volume_set", "control.volume_adjust", "control.mute", "control.media",
     "control.launch", "control.lock", "control.cancel_shutdown",
     "control.shutdown", "control.restart", "control.sleep", "control.kill_process",
@@ -60,6 +60,8 @@ PC_COMMANDS = [
     "code.task", "code.status", "code.projects",
     "claude.list", "claude.status", "claude.prompt", "claude.apps", "claude.open",
     "memory.remember", "memory.recall", "memory.forget", "memory.list",
+    "printer.status", "printer.make", "printer.sculpt", "printer.adjust", "printer.parts", "printer.open",
+    "printer.settings",
 ]
 
 
@@ -136,6 +138,52 @@ def build_tools(config) -> list[dict]:
                 'it ({"text":"call the dentist"}), todo.done ticks one off ({"which":"dentist"}) '
                 "and todo.sync looks for this week's emailed document. Read the list back "
                 "as a short sentence, not item by item, unless asked for all of it.\n"
+                "printer.status is the user's Elegoo 3D printer: what it is printing, "
+                "percent done, layer, time left and temperatures. Use it for any "
+                "question about the printer or a print.\n"
+                "printer.make DESIGNS a part for that printer and opens it in Elegoo "
+                'Slicer: {"title":"cable clip","scad":"..."} where scad is OpenSCAD '
+                "you write. Units are millimetres; build it on z=0 with the flattest "
+                "face down, keep overhangs under 45 degrees where you can, walls at "
+                "least 1.2 mm, and about 0.2 mm clearance wherever one thing must "
+                "fit over or into another. Put the key dimensions in named variables "
+                "at the top and use $fn=64 or so for round things. Ask for a "
+                "measurement only when you cannot guess a sensible one. If it comes "
+                "back with an OpenSCAD error, fix the code and call it again without "
+                "mentioning the error; to change a part the user has seen, edit your "
+                "previous code and call it again. It never starts a print - the user "
+                "checks it in the slicer and prints from there. Say the size it "
+                "reports.\n"
+                "printer.sculpt is for ORGANIC shapes OpenSCAD cannot draw - an "
+                "animal, a character, a bust, a figurine: "
+                '{"title":"dragon","prompt":"a small cartoon dragon sitting",'
+                '"height_mm":60}. Describe what it looks like, not how to print '
+                'it. {"image":"C:\\\\path\\\\photo.png"} sculpts from a picture '
+                "instead. When the request is short ('sculpt me an owl'), ask "
+                "two or three quick questions first, one at a time, each with a "
+                "couple of suggestions - style (cartoon or realistic), pose, a "
+                "key feature or accessory, a base, size - never colour or "
+                "material, since it prints in one colour. Then fold every "
+                "answer into one detailed visual prompt. Skip the questions "
+                "when the request is already specific or the user says just do "
+                "it. It takes about a minute and says when it is in the "
+                "slicer, so tell the user it is under way and carry on. Use "
+                "printer.make for anything with measurements that must fit.\n"
+                "printer.adjust makes a NEW VERSION of a part with one change, "
+                "keeping the original: "
+                '{"name":"turtle","change":"give it a small party hat"} or '
+                '{"change":"walls 2 mm thicker"} for the newest part, or '
+                '{"height_mm":80} alone to just resize a sculpture. Use it for '
+                "any 'make it...', 'change the...', 'can you add...' about a part "
+                "already made - including one from an earlier conversation. A "
+                "sculpture takes about a minute and says when it is done.\n"
+                "printer.parts lists what has been made so far; printer.open "
+                '{"name":"owl"} puts an earlier part back in the slicer. '
+                'printer.settings {"name":"owl"} is the slicer settings worked out '
+                "from that part's shape - layer height, supports, brim and the rest, "
+                "each with a reason; say the summary and any warning, not every row. Every "
+                "part, and one being made, is also on the dashboard's Workshop "
+                "tab (desktop.dashboard), with a 3D view and how it was made.\n"
                 "query.notifications says what has come in on Teams and Outlook lately - "
                 '{"hours":4} or {"app":"teams"} - which is the answer to "what did I miss". '
                 "It reads the toasts Windows showed, so it knows the sender and the first "
@@ -264,7 +312,7 @@ def build_tools(config) -> list[dict]:
         "parameters": {"type": "object", "properties": {}},
     })
 
-    if config.jarvis.home_assistant.token:
+    if config.jarvis.enabled and config.jarvis.home_assistant.token:
         tools += [
             {
                 "type": "function",
@@ -318,6 +366,8 @@ def jarvis_tools(config) -> list[dict]:
     Jarvis, asking Jarvis would be asking itself.
     """
     tools: list[dict] = []
+    if not config.jarvis.enabled:
+        return tools
     if config.jarvis.home_assistant.token:
         tools.append({
             "type": "function",

@@ -393,7 +393,11 @@ class FaceWindow:
                 )
                 result = build_registry().dispatch("query.system", {}, ctx)
                 if result.speech:
-                    ctx.jarvis.say(result.speech)
+                    # Through the speech route, so it is heard here when the
+                    # Pi is off rather than failing against it.
+                    from ..speech import Voice
+
+                    Voice(self.config, jarvis=ctx.jarvis).say(result.speech)
             except Exception as exc:
                 log.error("status request failed: %s", exc)
 

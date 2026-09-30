@@ -54,7 +54,8 @@ class MailUnavailable(RuntimeError):
 class MailConfig:
     """`todo.mail` - reading the weekly document straight from the inbox."""
 
-    enabled: bool = True
+    # Off for now: the folders are the only route. Kept for when it's wanted.
+    enabled: bool = False
     client_id: str = DEFAULT_CLIENT_ID
     # "common" takes work and personal accounts alike; a tenant id or domain
     # pins it to one organisation.

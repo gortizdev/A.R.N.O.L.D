@@ -342,6 +342,21 @@ class TestHooks:
         w.poll()
         assert s.turn == "busy"
 
+    def test_old_hook_events_are_not_announced_again_at_start(self, home, tmp_path):
+        # The hook file keeps days of history; a restart must not replay a
+        # permission prompt from last week as if it were on screen now.
+        home.write(user("push it", -30), assistant([tool_use("t1", "Bash", {"command": "git push"})], "tool_use", offset=-20))
+        events = tmp_path / "events.jsonl"
+        events.write_text(json.dumps({
+            "ts": time.time() - 3 * 86400, "event": "Notification", "session_id": SID,
+            "transcript_path": str(home.transcript),
+            "notification_type": "permission_prompt", "message": "Claude needs your permission to use Bash",
+        }) + "\n")
+        w = watch(home)
+        w.events_file = events
+        w.poll()
+        assert not [e for e in w.drain_new() if e["kind"] == "needs_input"]
+
     def test_the_hook_script_appends_one_line(self, tmp_path, monkeypatch, capsys):
         import io
 

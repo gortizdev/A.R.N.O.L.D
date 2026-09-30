@@ -391,10 +391,10 @@ arnold ui
 Or just ask for it — *"open the dashboard"* — which runs `desktop.dashboard`,
 starts the server if nothing is serving yet, and brings the browser forward.
 
-A page at `http://localhost:8770`, six views behind one strip of tabs. The
+A page at `http://localhost:8770`, seven views behind one strip of tabs. The
 header carries a small orb driven by the same feed as the desktop core — in the
 dashboard's own palette rather than the core's gold — so a glance tells you
-whether it is idle, listening, thinking or firing an alert. Alt+1 to Alt+6
+whether it is idle, listening, thinking or firing an alert. Alt+1 to Alt+7
 switch views, and `#machine` on the URL opens one directly.
 
 | View | Shows |
@@ -405,6 +405,7 @@ switch views, and `#machine` on the URL opens one directly.
 | Talk | something for Jarvis to say aloud, a question for him, and the voice transcript while `arnold listen` runs |
 | Commands | any of the commands with its arguments as fields, and what came back |
 | Log | the tail of `agent.log` |
+| Config | `config.yaml` itself, to edit: checked the way the agent loads it before it is written, the previous version kept as `config.yaml.bak`, and *Save & restart* restarts whichever tasks are running |
 
 ### The to-do list
 
@@ -942,6 +943,56 @@ document is not refused — its styles and scripts are lifted out, its
 anyway. `--arg raw=true` opts out entirely, for a page that really does want
 the whole window.
 
+## 3D printing
+
+Parts come two ways, and both end in Elegoo Slicer. Nothing is ever sent to
+the printer; that stays a person's click.
+
+- **Designed** (`printer.make`): the model writes OpenSCAD, which gets
+  measurements exactly right. For anything that has to fit.
+- **Sculpted** (`printer.sculpt`): OpenAI draws the subject as a clay model
+  on a turnaround sheet with three views: front, side and back. The back is
+  seen rather than guessed, and the side is the only view that shows depth,
+  such as how far a belt loop stands off a pouch. A vision model reports
+  which way the side view faces, because the drawing does not reliably
+  follow the prompt, and a side view named the wrong way round puts the
+  back on the front. Hunyuan3D-2mv turns the views into a mesh, which is
+  cleaned, stood up and scaled. For anything organic. The fourth side is
+  left out on purpose: it is nearly always a mirror of the second, and when
+  asked for, it tends to come out contradicting the others.
+
+`printer.adjust` makes a new version with one change. A sculpture's picture
+is edited with `gpt-image-1.5`, because `gpt-image-1` hands back the same
+picture for any change of substance. Every part is on the dashboard's
+**Workshop** tab.
+
+### Local 3D generator
+
+The shape step runs on a Hugging Face Space unless this PC can do it itself.
+The free Space allowance runs out after a handful of sculptures. Running it
+locally needs an NVIDIA card with about 8 GB free, and roughly 12 GB of disk.
+It lives in `models/hy3d/`, in an environment of its own so that PyTorch
+never touches A.R.N.O.L.D.'s:
+
+```powershell
+cd models\hy3d
+git clone --depth 1 https://github.com/Tencent/Hunyuan3D-2.git
+uv venv .venv --python 3.12
+# cu128 is what an RTX 50-series (Blackwell, sm_120) needs; older cards can use it too.
+uv pip install --python .venv\Scripts\python.exe torch torchvision --index-url https://download.pytorch.org/whl/cu128
+uv pip install --python .venv\Scripts\python.exe diffusers "transformers>=4.48" accelerate einops omegaconf opencv-python scikit-image pymeshlab trimesh pygltflib rembg onnxruntime huggingface_hub safetensors pyyaml tqdm
+# Only the safetensors weights (4.7 GB). The folder also holds a .ckpt copy that would double the download.
+.venv\Scripts\python.exe -c "from huggingface_hub import hf_hub_download as d; [d('tencent/Hunyuan3D-2mv', f'hunyuan3d-dit-v2-mv-turbo/{n}', local_dir='weights/tencent/Hunyuan3D-2mv') for n in ('config.yaml', 'model.fp16.safetensors')]"
+```
+
+`arnold printer local` checks each piece. With `printer.sculpt_backend: auto`,
+the default, sculpting moves to this PC as soon as all three are there. Each
+shape runs in a fresh process (`src/arnold/hy3d_worker.py`), so the card is
+free again the moment it is done. The first run also downloads the
+background-removal model, about 1 GB.
+
+Hunyuan3D is under Tencent's non-commercial licence: personal prints only.
+
 ## Commands
 
 | Command | What it does |
@@ -967,6 +1018,13 @@ the whole window.
 | `desktop.notify` / `clipboard_get` / `clipboard_set` / `screenshot` | Desktop |
 | `desktop.dashboard` | Put the dashboard on screen, starting it if needed |
 | `artifact.create` / `artifact.open` / `artifact.list` | Build a page and show it |
+| `printer.status` | What the 3D printer is doing |
+| `printer.make --arg title=... --arg scad=...` | Render OpenSCAD to STL in `prints/` and open it in Elegoo Slicer (never starts a print) |
+| `printer.sculpt --arg prompt=... [--arg image=...]` | AI-sculpt an organic shape (OpenAI picture → Hunyuan3D-2 Space → cleaned STL) and open it in the slicer; needs `.[sculpt]` |
+| `printer.settings [--arg name=...]` | Slicer settings worked out from a part's own shape - layer height (finer where it slopes gently), walls, infill, supports (tree for organic shapes), brim (for tall parts on a small base), lay-on-face and split-to-objects when a designed part needs them, temperatures for `printer.filament` - each with its reason, and roughly how many grams. Kept with the part, shown on the Workshop tab |
+| `printer.brief --arg prompt=... [--arg answers='[{"question":...,"answer":...}]'] [--arg questions=0]` | Before sculpting a short request: follow-up questions (style, pose, features, base, size - never colour) and the detailed description so far, each round folding in the answers; `questions=0` gives the final description only (`sculpt_ask_model`). The Workshop's Sculpt button asks these first; voice asks them itself |
+| `printer.adjust --arg name=... --arg change=...` | A new version of a part with one change, the original kept: a sculpture's picture is edited (`adjust_image_model`) and shaped again, a designed part's OpenSCAD is rewritten (`adjust_code_model`) and rendered, retrying on render errors; `height_mm` alone just rescales a sculpture |
+| `printer.parts` / `printer.open` / `printer.forget` | The collection of parts made so far; reopen one in the slicer; delete one. The dashboard's **Workshop** tab shows the same collection with a 3D viewer, each part's picture or OpenSCAD, and a sculpture's steps live as it is made |
 | `memory.remember` / `recall` / `forget` / `list` | What it keeps between conversations |
 | `query.mail` | Unread count and the newest thing in the inbox |
 | `query.next_meeting` / `query.agenda` | The meeting in progress or due, and what's coming up |
@@ -1013,6 +1071,30 @@ Register-ScheduledTask -TaskName "Arnold" -Action $action -Trigger $trigger -Set
 
 Run at logon rather than as a service: toasts, clipboard, screenshots, and media
 keys all need an interactive desktop session.
+
+## Game mode
+
+`arnold game on` stops the agent, face and voice and boosts the PC the way
+Razer Cortex does: a high-performance power plan, background apps closed
+(`game.close_apps`), other processes' memory trimmed, and a running game's
+priority raised. `arnold game off` puts everything back, including starting the
+closed apps again. What was changed is saved in `logs/boost.json`, so it can
+still be undone after a crash.
+
+`arnold game watch --install` registers an `ArnoldGameWatch` logon task that
+does this on its own: it spots a process starting from a Steam, Epic, Xbox, GOG,
+Riot, EA or Ubisoft game folder (or one named in `game.games`), and undoes the
+boost once no game has been running for `game.exit_grace_seconds`. Its log goes
+to `logs/game-watch.log`. `--remove` uninstalls it.
+
+The watcher also switches on Lossless Scaling: it starts it if it is closed,
+waits until the game's window has been in front for `game.scaling_delay_seconds`,
+then presses the hotkey from Lossless Scaling's own Settings.xml. A game with an
+AutoScale profile there is left to Lossless Scaling, since pressing the hotkey
+too would toggle it back off. Lossless Scaling usually runs as administrator, so
+`arnold game scaling --install` registers an elevated `ArnoldLosslessScaling`
+task (one UAC prompt, once) and starting it through that task never prompts.
+`arnold game scaling` shows what it found.
 
 ## Troubleshooting
 

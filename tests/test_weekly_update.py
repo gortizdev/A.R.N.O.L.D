@@ -202,6 +202,20 @@ class TestSyncByWeek:
         assert sync.status()["state"] == "imported"
         assert sync.status()["error"] == ""
 
+    def test_automatic_scan_only_runs_on_the_day(self, tmp_path):
+        cfg = self._config(tmp_path)
+        wed = this_wednesday()
+        status_update(tmp_path / "inbox" / "geo update.docx", mdy(wed))
+        sync = TodoSync(cfg)
+        thursday = wed + 86400 + 10 * 3600
+        assert not sync.on_day(thursday)
+        assert sync.sync(now=thursday) is None
+        assert sync.list.items() == []
+        report = sync.sync(now=wed + 10 * 3600)
+        assert report is not None and report.dated == mdy(wed) and report.total > 0
+        cfg.todo.weekday_only = False
+        assert sync.on_day(thursday)
+
     def test_manual_import_takes_the_newest_section(self, tmp_path):
         todos = TodoList(tmp_path / "todos.json")
         path = status_update(tmp_path / "u.docx", "09/02/2026", second="09/09/2026")

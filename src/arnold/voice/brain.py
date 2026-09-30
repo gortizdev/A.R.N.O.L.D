@@ -290,6 +290,6 @@ class JarvisBrain:
 
 def build_brain(config, context: CommandContext):
     local = LocalBrain(context)
-    if config.voice.brain == "local":
+    if config.voice.brain == "local" or not config.jarvis.enabled:
         return local
     return JarvisBrain(config, local=local)

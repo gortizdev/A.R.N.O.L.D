@@ -165,14 +165,14 @@ class Registry:
 def build_registry() -> Registry:
     """Construct the registry with every built-in command attached."""
     from . import (
-        artifact, claude, clock, code, control, desktop, memory, profile, query, schedule,
-        system, timer, todo, weather, web,
+        artifact, claude, clock, code, control, desktop, memory, printer, profile, query,
+        schedule, system, timer, todo, weather, web,
     )
 
     registry = Registry()
     for module in (
         system, query, control, desktop, web, artifact, code, claude, memory,
-        schedule, profile, timer, todo, clock, weather,
+        schedule, profile, timer, todo, clock, weather, printer,
     ):
         module.register_all(registry)
     return registry

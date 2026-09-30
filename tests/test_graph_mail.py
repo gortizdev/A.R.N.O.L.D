@@ -91,7 +91,7 @@ class TestPieces:
         assert cfg.todo.match == ["weekly"]
         assert cfg.todo.mail.tenant == "contoso.com"
         assert cfg.todo.mail.client_id == DEFAULT_CLIENT_ID
-        assert Config().todo.mail.enabled
+        assert not Config().todo.mail.enabled  # off for now; the folders are the route
 
 
 class FakeMail:

@@ -760,6 +760,9 @@ class ClaudeWatch:
         self._titles_at = 0.0
         self._titles: dict[str, dict[str, Any]] = {}
         self._events_offset = 0
+        # The hook file is read from the top on every start so the state is
+        # right, but what happened before the watch began is history, not news.
+        self._started_at = _now()
         self._apps: dict[int, ListeningApp] = {}
         self._apps_seeded = False
         self._stray: list[dict[str, Any]] = []
@@ -1085,7 +1088,13 @@ class ClaudeWatch:
             except ValueError:
                 continue
             if isinstance(row, dict):
-                events += self._apply_hook(row)
+                out = self._apply_hook(row)
+                try:
+                    stale = bool(row.get("ts")) and float(row["ts"]) < self._started_at
+                except (TypeError, ValueError):
+                    stale = False
+                if not stale:
+                    events += out
         return events
 
     def _apply_hook(self, row: dict[str, Any]) -> list[dict[str, Any]]:

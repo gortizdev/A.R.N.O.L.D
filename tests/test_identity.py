@@ -16,6 +16,7 @@ from arnold.face.state import FaceAnimator, FaceMode
 from arnold.voice import session_config
 from arnold.voice.session_config import (
     DEFAULT_DELIVERY,
+    accent_reminder_for,
     SessionConfig,
     delivery_for,
     load_session_config,
@@ -356,10 +357,16 @@ class TestProfiles:
 
     def test_builtin_arnold_has_his_own_character(self, config):
         config.apply_profile("arnold")
-        assert config.assistant.voice == "ballad"
+        assert config.assistant.voice == "ash"
         assert "cheeky" in persona_for(config)
         assert "pc_agent" in persona_for(config)  # still knows his job
         assert "cheeky" in delivery_for(config)
+        assert "Scottish" in persona_for(config) and "Scottish" in delivery_for(config)
+        assert persona_for(config).startswith("ACCENT")  # leads, so it is not buried
+        assert "Scottish" in accent_reminder_for(config)
+        config.assistant.persona = "Someone else entirely."
+        assert accent_reminder_for(config) == ""
+        config.assistant.persona = ""
         config.apply_profile("mycroft")
         assert delivery_for(config) == DEFAULT_DELIVERY
 

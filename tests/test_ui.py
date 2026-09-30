@@ -208,7 +208,7 @@ class TestGuards:
     def test_an_oversized_body_is_refused(self, server):
         status, _ = request(
             server, "/api/say", method="POST",
-            body={"text": "x" * 70_000}, headers=UI,
+            body={"text": "x" * 300_000}, headers=UI,
         )
         assert status == 413
 
@@ -588,3 +588,154 @@ class TestImportingADocument:
     def test_an_empty_or_huge_body_is_refused(self, server):
         status, reply = self._upload(server, "a.txt", b"")
         assert status == 400 and not reply["ok"]
+
+
+class TestEditingTheConfig:
+    """The Config tab: the file is checked before it is written, backed up,
+    and never written over an edit made elsewhere since the page loaded it."""
+
+    GOOD = "device:\r\n  id: desk\r\n"
+
+    def test_reads_the_file(self, server, config):
+        config.source_path.write_bytes(self.GOOD.encode())
+        status, reply = request(server, "/api/config")
+        assert status == 200 and reply["ok"]
+        assert reply["text"] == "device:\n  id: desk\n"
+        assert reply["path"] == str(config.source_path)
+        # Nanoseconds are past what a JavaScript number holds exactly; as a
+        # number, the page would send back a rounded copy that never matches.
+        assert isinstance(reply["mtime"], str)
+
+    def test_saves_keeps_a_backup_and_line_endings(self, server, config):
+        config.source_path.write_bytes(self.GOOD.encode())
+        _, loaded = request(server, "/api/config")
+        new = "device:\n  id: tower\n"
+        status, reply = request(server, "/api/config", method="POST", headers=UI,
+                                body={"text": new, "mtime": loaded["mtime"]})
+        assert status == 200 and reply["ok"], reply
+        assert reply["restarting"] is False
+        assert config.source_path.read_bytes() == b"device:\r\n  id: tower\r\n"
+        assert config.source_path.with_name("config.yaml.bak").read_bytes() == self.GOOD.encode()
+
+    def test_a_bad_config_is_not_written(self, server, config):
+        config.source_path.write_bytes(self.GOOD.encode())
+        _, loaded = request(server, "/api/config")
+        for text in ("device:\n  nonsense_key: 1\n", "device: [unclosed\n"):
+            _, reply = request(server, "/api/config", method="POST", headers=UI,
+                               body={"text": text, "mtime": loaded["mtime"]})
+            assert reply["ok"] is False and reply["error"]
+        assert config.source_path.read_bytes() == self.GOOD.encode()
+        assert not list(config.source_path.parent.glob(".config.yaml.check"))
+
+    def test_an_edit_made_elsewhere_is_not_overwritten(self, server, config):
+        config.source_path.write_bytes(self.GOOD.encode())
+        _, loaded = request(server, "/api/config")
+        time.sleep(0.02)
+        config.source_path.write_text("device:\n  id: elsewhere\n")
+        _, reply = request(server, "/api/config", method="POST", headers=UI,
+                           body={"text": "device:\n  id: mine\n", "mtime": str(int(loaded["mtime"]) - 1)})
+        assert reply["ok"] is False and "changed on disk" in reply["error"]
+        assert "elsewhere" in config.source_path.read_text()
+
+    def test_writing_needs_the_ui_header(self, server, config):
+        config.source_path.write_bytes(self.GOOD.encode())
+        status, _ = request(server, "/api/config", method="POST", body={"text": "device: {}\n"})
+        assert status == 403
+        assert config.source_path.read_bytes() == self.GOOD.encode()
+
+    def test_restart_is_asked_for_after_saving(self, server, config, monkeypatch):
+        from arnold import config_edit
+
+        calls = []
+        monkeypatch.setattr(config_edit, "restart_later", lambda: calls.append(1))
+        config.source_path.write_bytes(self.GOOD.encode())
+        _, loaded = request(server, "/api/config")
+        _, reply = request(server, "/api/config", method="POST", headers=UI,
+                           body={"text": self.GOOD, "mtime": loaded["mtime"], "restart": True})
+        assert reply["ok"] and reply["restarting"] and calls == [1]
+
+
+class TestTheSettingsForm:
+    FILE = "device:\n  id: desk  # keep me\n"
+
+    def test_form_describes_and_reads_the_file(self, server, config):
+        config.source_path.write_text(self.FILE)
+        status, reply = request(server, "/api/config/form")
+        assert status == 200 and reply["ok"]
+        assert reply["values"]["device.id"] == "desk"
+        assert any(s["key"] == "game" for s in reply["sections"])
+
+    def test_saving_changes_writes_only_them(self, server, config):
+        config.source_path.write_text(self.FILE)
+        _, form = request(server, "/api/config/form")
+        _, reply = request(server, "/api/config/form", method="POST", headers=UI,
+                           body={"changes": {"device.id": "tower", "game.boost": False}, "mtime": form["mtime"]})
+        assert reply["ok"], reply
+        text = config.source_path.read_text()
+        assert "# keep me" in text and "id: tower" in text and "boost: false" in text
+        assert reply["values"]["game.boost"] is False
+
+    def test_bad_values_are_refused_whole(self, server, config):
+        config.source_path.write_text(self.FILE)
+        _, form = request(server, "/api/config/form")
+        _, reply = request(server, "/api/config/form", method="POST", headers=UI,
+                           body={"changes": {"device.id": "tower", "ui.port": "lots", "nope.x": 1},
+                                 "mtime": form["mtime"]})
+        assert reply["ok"] is False
+        assert "ui.port" in reply["error"] and "nope.x" in reply["error"]
+        assert config.source_path.read_text() == self.FILE
+
+
+class TestWorkshopFiles:
+    """The Workshop tab's two routes: a part's files out, a picture in."""
+
+    def raw(self, server, path, *, method="GET", data=None, headers=None):
+        req = urllib.request.Request(server.base + path, data=data, method=method)
+        for key, value in (headers or {}).items():
+            req.add_header(key, value)
+        try:
+            with urllib.request.urlopen(req, timeout=10) as response:
+                return response.status, response.headers, response.read()
+        except urllib.error.HTTPError as exc:
+            return exc.code, exc.headers, exc.read()
+
+    def test_a_parts_file_is_served_and_may_be_cached(self, server, config):
+        prints = config.source_path.parent / "prints"
+        prints.mkdir()
+        (prints / "20260929-120000-owl.stl").write_bytes(b"solid owl")
+        status, headers, body = self.raw(server, "/api/prints/file?name=20260929-120000-owl&kind=stl")
+        assert status == 200 and body == b"solid owl"
+        assert headers["Content-Type"] == "model/stl"
+        assert "max-age" in headers["Cache-Control"]
+
+    @pytest.mark.parametrize("query", [
+        "name=../config&kind=yaml",
+        "name=20260929-120000-owl&kind=exe",
+        "name=..%5C..%5Cconfig&kind=stl",
+        "name=20260929-120000-missing&kind=stl",
+    ])
+    def test_anything_else_is_not_found(self, server, config, query):
+        (config.source_path.parent / "prints").mkdir(exist_ok=True)
+        status, _, _ = self.raw(server, "/api/prints/file?" + query)
+        assert status == 404
+
+    def test_a_picture_upload_is_saved_under_prints(self, server, config):
+        status, _, body = self.raw(server, "/api/prints/upload", method="POST", data=b"\x89PNG....",
+                                   headers={**UI, "X-File-Name": "../../My Owl.png",
+                                            "Content-Type": "application/octet-stream"})
+        reply = json.loads(body)
+        assert status == 200 and reply["ok"]
+        saved = pathlib.Path(reply["path"])
+        assert saved.parent == config.source_path.parent / "prints" / "uploads"
+        assert saved.read_bytes() == b"\x89PNG...."
+
+    def test_only_pictures_are_taken(self, server):
+        status, _, body = self.raw(server, "/api/prints/upload", method="POST", data=b"MZ",
+                                   headers={**UI, "X-File-Name": "tool.exe",
+                                            "Content-Type": "application/octet-stream"})
+        assert not json.loads(body)["ok"]
+
+    def test_an_upload_needs_the_page_header(self, server):
+        status, _, _ = self.raw(server, "/api/prints/upload", method="POST", data=b"x",
+                                headers={"X-File-Name": "a.png", "Content-Type": "application/octet-stream"})
+        assert status == 403

@@ -1106,6 +1106,17 @@ class TodoSync:
         now = time.time() if now is None else now
         return (now - self._scanned_at) >= max(5.0, float(self.todo.scan_seconds))
 
+    def on_day(self, now: float | None = None) -> bool:
+        """Whether today is the day the update comes, when that is the only
+        day worth looking (`weekday_only`)."""
+        if not getattr(self.todo, "weekday_only", False):
+            return True
+        day = weekday_index(self.todo.weekday)
+        if day is None:
+            return True
+        now = time.time() if now is None else now
+        return datetime.fromtimestamp(now).weekday() == day
+
     def mail_due(self, now: float | None = None) -> bool:
         now = time.time() if now is None else now
         if self.mail is None:
@@ -1167,6 +1178,8 @@ class TodoSync:
         if not self.todo.enabled:
             return None
         if not force and not self.due(now):
+            return None
+        if not force and not self.on_day(now):
             return None
         self._scanned_at = now
 

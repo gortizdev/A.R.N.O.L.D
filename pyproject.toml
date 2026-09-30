@@ -12,6 +12,8 @@ dependencies = [
     "pillow>=10.0.0",
     # Renders markdown artifacts. Pure Python, no C extension.
     "markdown>=3.5",
+    # Edits config.yaml from the console without losing its comments.
+    "ruamel.yaml>=0.18",
 ]
 
 [project.optional-dependencies]
@@ -69,6 +71,9 @@ wake-train = [
     "pronouncing>=0.2.0",
     "onnx>=1.15",
 ]
+# printer.sculpt: an AI-made mesh from a Hugging Face Space, cleaned and
+# scaled into a printable STL. fast_simplification is trimesh's decimator.
+sculpt = ["gradio_client>=1.0", "trimesh>=4.0", "fast_simplification>=0.1"]
 dev = ["pytest>=8.0.0"]
 
 [project.scripts]

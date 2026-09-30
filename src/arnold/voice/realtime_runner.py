@@ -34,7 +34,7 @@ from .. import memory, process
 from ..speech import set_conversation_live
 from .audio import AudioError, WakeWordDetector, resolve_device
 from .realtime import RealtimeConversation, TurnTaking
-from .session_config import load_session_config
+from .session_config import accent_reminder_for, load_session_config
 from .tools import ToolDispatcher, build_tools
 from .wake_ack import WakeAck
 
@@ -314,8 +314,11 @@ class RealtimeVoiceAssistant:
             f"\n\nAs this conversation opens it is {now_sentence()}. For the time "
             "later on, use clock.now rather than counting from this."
         )
+        reminder = accent_reminder_for(self.config)
+        if reminder:
+            reminder = "\n\n" + reminder
         return dataclasses.replace(
-            self.session, instructions=self.session.instructions + clock + block
+            self.session, instructions=self.session.instructions + clock + block + reminder
         )
 
     def _keep_conversation(self) -> None:

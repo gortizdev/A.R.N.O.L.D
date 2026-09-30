@@ -216,6 +216,7 @@ class RealtimeConversation:
                         "output": {
                             "format": {"type": "audio/pcm", "rate": RATE},
                             "voice": self.session.voice,
+                            "speed": self.session.speed,
                         },
                     },
                 },

@@ -20,4 +20,12 @@ models/wake/train/
 models/piper/
 models/ack/
 models/jarvis_session.json
+# The local 3D generator: its own Python, the Hunyuan3D-2 checkout and ~5 GB
+# of weights (README, "Local 3D generator").
+models/hy3d/
 artifacts/
+prints/
+
+# Left by saving the config from the console.
+config.yaml.bak
+.config.yaml.check

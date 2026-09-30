@@ -45,9 +45,9 @@ from ..todos import TodoSync
 log = logging.getLogger(__name__)
 
 PAGE_FILE = Path(__file__).with_name("index.html")
-# Generous for a command's arguments, mean enough that a stray upload cannot
-# make this process hold a large body in memory.
-MAX_BODY_BYTES = 64 * 1024
+# Generous for a command's arguments or the whole config file, mean enough
+# that a stray upload cannot make this process hold a large body in memory.
+MAX_BODY_BYTES = 256 * 1024
 # The one route that takes a file: a document for the to-do list, picked in
 # the browser's own Open dialog. A weekly update is a few hundred kilobytes.
 MAX_UPLOAD_BYTES = 16 * 1024 * 1024
@@ -241,6 +241,8 @@ class Dashboard:
                 "can_ask": self.can_ask_jarvis(),
             },
             "jarvis": {
+                "enabled": bool(self.config.jarvis.enabled),
+                "speech_route": self.speech.route,
                 "route": probe.get("route"),
                 "ok": bool(probe.get("ok")),
                 "detail": probe.get("detail", ""),
@@ -251,6 +253,7 @@ class Dashboard:
             # the page already says elsewhere.
             "notices": (agent or {}).get("notices", []),
             "jobs": (agent or {}).get("jobs", []),
+            "printer": (agent or {}).get("printer"),
             "todos": self.todo_section(),
             "transcript": details["transcript"][-20:],
             "snapshot": snapshot,
@@ -415,6 +418,146 @@ class Dashboard:
             args["source"] = source
         return self.run_command("todo.import", args, False)
 
+    # -- the workshop: parts made for the printer ----------------------------
+
+    def part_file(self, name: str, kind: str) -> tuple[bytes, str] | None:
+        """One file of one part, for the viewer and the thumbnails. The
+        catalog refuses any name that is not a part's stem, so this cannot
+        be turned into a way to read the rest of the disk."""
+        from ..commands.printer import catalog
+        from ..parts import FILE_TYPES
+
+        path = catalog(self.context).file(name, kind)
+        if path is None:
+            return None
+        try:
+            return path.read_bytes(), FILE_TYPES[kind.lower()]
+        except OSError:
+            return None
+
+    def upload_picture(self, name: str, data: bytes) -> dict[str, Any]:
+        """A picture chosen in the browser, to sculpt from. Saved under the
+        prints folder with a safe name and a picture's extension only."""
+        from ..commands.printer import IMAGE_TYPES, prints_dir
+        from ..graph_mail import safe_name
+
+        name = safe_name(Path(name or "").name)
+        suffix = Path(name).suffix.lower()
+        if suffix not in IMAGE_TYPES:
+            return {"ok": False, "error": "I can sculpt from a PNG, JPEG or WebP picture."}
+        if not data:
+            return {"ok": False, "error": "the picture was empty"}
+        folder = prints_dir(self.context) / "uploads"
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            target = folder / name
+            target.write_bytes(data)
+        except OSError as exc:
+            return {"ok": False, "error": f"could not save the picture: {exc}"}
+        return {"ok": True, "path": str(target)}
+
+    # -- the config file ---------------------------------------------------
+
+    def _config_path(self) -> Path | None:
+        return self.config.source_path
+
+    def config_file(self) -> dict[str, Any]:
+        from .. import config_edit
+
+        path = self._config_path()
+        if path is None:
+            return {"ok": False, "error": "this dashboard was not started from a config file"}
+        try:
+            return {"ok": True, **config_edit.read(path)}
+        except OSError as exc:
+            return {"ok": False, "error": f"could not read {path}: {exc}"}
+
+    def save_config(self, text: str, mtime: Any, restart: bool) -> dict[str, Any]:
+        from .. import config_edit
+
+        path = self._config_path()
+        if path is None:
+            return {"ok": False, "error": "this dashboard was not started from a config file"}
+        try:
+            expected = str(int(str(mtime))) if mtime is not None else None
+        except (TypeError, ValueError):
+            expected = None
+        try:
+            saved = config_edit.save(path, text, expected)
+        except config_edit.ConfigEditError as exc:
+            return {"ok": False, "error": str(exc)}
+        except OSError as exc:
+            return {"ok": False, "error": f"could not write {path}: {exc}"}
+        log.info("config saved from the dashboard (%s)", path)
+        reply: dict[str, Any] = {"ok": True, **saved, "restarting": False}
+        if restart:
+            error = config_edit.restart_later()
+            if error:
+                reply["restart_error"] = error
+            else:
+                reply["restarting"] = True
+        return reply
+
+    def _form_reply(self, text: str) -> dict[str, Any]:
+        from .. import config_edit, config_schema
+
+        try:
+            profiles = list(self.config.profiles())
+        except Exception:  # a broken profiles block should not hide the form
+            profiles = None
+        extra: dict[str, list[str]] = {}
+        try:
+            from ..booster import list_plans
+
+            extra["game.power_plan"] = list(list_plans().values())
+        except Exception:  # not Windows, or powercfg missing
+            pass
+        sections = config_schema.schema(profiles, extra)
+        try:
+            raw = config_edit.raw_values(text)
+        except Exception as exc:
+            return {"ok": False, "error": f"the file is not valid YAML - fix it in the YAML view: {exc}"}
+        return {"ok": True, "sections": sections, "values": config_schema.values(raw, sections)}
+
+    def config_form(self) -> dict[str, Any]:
+        loaded = self.config_file()
+        if not loaded.get("ok"):
+            return loaded
+        reply = self._form_reply(loaded["text"])
+        if reply.get("ok"):
+            reply.update(path=loaded["path"], mtime=loaded["mtime"])
+        return reply
+
+    def save_config_fields(self, changes: dict[str, Any], mtime: Any, restart: bool) -> dict[str, Any]:
+        from .. import config_edit, config_schema
+
+        loaded = self.config_file()
+        if not loaded.get("ok"):
+            return loaded
+        fields = {f["path"]: f for s in config_schema.schema() for f in s["fields"]}
+        clean: dict[str, Any] = {}
+        problems = []
+        for path, value in changes.items():
+            field = fields.get(path)
+            if field is None:
+                problems.append(f"{path}: no such setting")
+                continue
+            try:
+                clean[path] = config_edit.coerce(field, value)
+            except (TypeError, ValueError) as exc:
+                problems.append(f"{path}: {exc}")
+        if problems:
+            return {"ok": False, "error": "; ".join(problems)}
+        try:
+            text = config_edit.apply_changes(loaded["text"], clean)
+        except config_edit.ConfigEditError as exc:
+            return {"ok": False, "error": str(exc)}
+        reply = self.save_config(text, mtime, restart)
+        if reply.get("ok"):
+            form = self._form_reply(reply["text"])
+            reply.update(sections=form.get("sections"), values=form.get("values"))
+        return reply
+
     def say(self, text: str) -> dict[str, Any]:
         """Say it aloud, wherever speech.route points - the Pi, this PC's own
         speakers, or both. Queued rather than spoken here, so a slow round trip
@@ -431,6 +574,7 @@ class Dashboard:
         Home Assistant relay to reach the other one."""
         return bool(
             not self.config.assistant.mirror_jarvis
+            and self.config.jarvis.enabled
             and self.config.jarvis.home_assistant.token
         )
 
@@ -472,12 +616,14 @@ class _Handler(BaseHTTPRequestHandler):
         # two seconds that buries anything worth reading.
         log.debug("%s - %s", self.address_string(), fmt % args)
 
-    def _send(self, status: int, body: bytes, content_type: str) -> None:
+    def _send(self, status: int, body: bytes, content_type: str, *, cache: str = "no-store") -> None:
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
-        # Nothing here is cacheable and none of it should be framed elsewhere.
-        self.send_header("Cache-Control", "no-store")
+        # Nothing here should be framed elsewhere, and almost nothing is
+        # cacheable - a part's files are the exception, since a part's name
+        # is new each time it is made and its files never change after.
+        self.send_header("Cache-Control", cache)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
         self.end_headers()
@@ -590,12 +736,23 @@ class _Handler(BaseHTTPRequestHandler):
             self._json(self.dashboard.commands())
         elif route == "/api/history":
             self._json(self.dashboard.history())
+        elif route == "/api/config":
+            self._json(self.dashboard.config_file())
+        elif route == "/api/config/form":
+            self._json(self.dashboard.config_form())
         elif route == "/api/log":
             try:
                 lines = int((query.get("lines") or ["0"])[0])
             except ValueError:
                 lines = 0
             self._json(self.dashboard.log_tail(lines or self.dashboard.config.ui.log_lines))
+        elif route == "/api/prints/file":
+            found = self.dashboard.part_file((query.get("name") or [""])[0],
+                                             (query.get("kind") or [""])[0])
+            if found is None:
+                self._json({"ok": False, "error": "no such part file"}, 404)
+            else:
+                self._send(200, *found, cache="private, max-age=86400")
         elif route == "/favicon.ico":
             self._send(204, b"", "image/x-icon")
         else:
@@ -634,6 +791,13 @@ class _Handler(BaseHTTPRequestHandler):
             source = (query.get("source") or [""])[0]
             self._json(self.dashboard.import_upload(name, data, source))
             return
+        if route == "/api/prints/upload":
+            data = self._read_upload()
+            if data is None:
+                return
+            name = self.headers.get("X-File-Name") or (query.get("name") or [""])[0]
+            self._json(self.dashboard.upload_picture(name, data))
+            return
 
         payload = self._read_body()
         if payload is None:
@@ -651,6 +815,19 @@ class _Handler(BaseHTTPRequestHandler):
             )
         elif route == "/api/say":
             self._json(self.dashboard.say(str(payload.get("text") or "")))
+        elif route == "/api/config":
+            text = payload.get("text")
+            if not isinstance(text, str) or not text.strip():
+                self._json({"ok": False, "error": "no config text was sent"}, 400)
+                return
+            self._json(self.dashboard.save_config(text, payload.get("mtime"), bool(payload.get("restart"))))
+        elif route == "/api/config/form":
+            changes = payload.get("changes")
+            if not isinstance(changes, dict) or not changes:
+                self._json({"ok": False, "error": "no changes were sent"}, 400)
+                return
+            self._json(self.dashboard.save_config_fields(
+                changes, payload.get("mtime"), bool(payload.get("restart"))))
         elif route == "/api/ask":
             self._json(self.dashboard.ask(str(payload.get("text") or "")))
         else:
@@ -678,6 +855,7 @@ class _Handler(BaseHTTPRequestHandler):
                 "title": cfg.assistant_title(),
                 "motto": cfg.assistant_motto(),
                 "palette": cfg.face_palette(),
+                "design": cfg.face_design(),
             }
         )
         page = page.replace("__BOOT__", boot, 1)

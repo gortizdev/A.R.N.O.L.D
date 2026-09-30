@@ -966,6 +966,173 @@ def cmd_wake(args: argparse.Namespace) -> int:
         return 1
 
 
+def cmd_game(args: argparse.Namespace) -> int:
+    """Get out of the way of a game: stop every task and boost the PC, then
+    put it all back after. `watch` does both on its own when a game starts."""
+    from . import booster
+
+    config = load_config(args.config)
+    game = config.game
+
+    if args.action == "scaling":
+        from . import lossless
+
+        exe = lossless.find_exe(game.scaling_exe)
+        if args.install or args.remove:
+            if args.install and exe is None:
+                print("Lossless Scaling is not installed where this can find it; "
+                      "set game.scaling_exe", file=sys.stderr)
+                return 1
+            print("approve the UAC prompt to " + ("remove" if args.remove else "register")
+                  + f" the elevated {lossless.TASK} task...")
+            error = lossless.remove_task() if args.remove else lossless.install_task(exe)
+            if error:
+                print(error, file=sys.stderr)
+                return 1
+            print(f"{lossless.TASK} " + ("removed" if args.remove else
+                  "registered: games start Lossless Scaling without a UAC prompt"))
+            return 0
+        settings = lossless.read_settings()
+        print(f"auto-scaling   {'on' if game.scaling else 'off'} (game.scaling)")
+        print(f"installed      {exe or 'not found'}")
+        print(f"running        {'yes' if lossless.running() else 'no'}")
+        print(f"elevated task  {'yes' if lossless.task_installed() else 'no - `arnold game scaling --install`'}")
+        if settings:
+            print(f"hotkey         {settings.hotkey_text}"
+                  + ("" if settings.key else " (not one this can press)"))
+            for path in sorted(settings.auto_paths):
+                print(f"auto profile   {path}")
+        return 0
+
+    if args.action == "watch":
+        if args.install or args.remove:
+            error = booster.remove_watch() if args.remove else booster.install_watch(config)
+            if error:
+                print(error, file=sys.stderr)
+                return 1
+            print(f"{booster.WATCH_TASK} " + ("removed" if args.remove else
+                  "installed and started: games are boosted as they launch"))
+            return 0
+        from pathlib import Path
+
+        setup_logging(args.log_level or config.log_level,
+                      str(Path(config.state_file).with_name("game-watch.log")))
+        return booster.watch(config)
+
+    if args.action == "status":
+        states = booster.task_states(booster.TASKS + (booster.WATCH_TASK,))
+        for name in booster.TASKS + (booster.WATCH_TASK,):
+            print(f"{name:16} {states.get(name, 'not installed')}")
+        saved = booster.read_boost(config)
+        print()
+        if saved:
+            since = time.strftime("%H:%M", time.localtime(saved.get("since", 0)))
+            print(f"boosted since {since} ({saved.get('by', 'manual')}) - `arnold game off` to undo")
+        else:
+            running = any(states.get(t) == "Running" for t in booster.TASKS)
+            print("game mode is " + ("off" if running else "on") + " - `arnold game "
+                  + ("on` to stop everything" if running else "off` to bring it back"))
+        return 0
+
+    if args.action == "on":
+        if game.stop_tasks:
+            error = booster.switch_tasks(stop=True)
+            if error:
+                print(error, file=sys.stderr)
+                return 1
+        done = []
+        if game.boost:
+            playing = booster.running_games(game)
+            done = booster.apply(config, playing[0][0] if playing else None)
+        print("game mode on: " + ("the agent, face and voice are stopped. " if game.stop_tasks else ""))
+        for line in done:
+            print(f"  {line}")
+        print("`arnold game off` when done.")
+        return 0
+
+    done = booster.restore(config)
+    if game.stop_tasks:
+        error = booster.switch_tasks(stop=False)
+        if error:
+            print(error, file=sys.stderr)
+            return 1
+    print("game mode off: " + ("the agent, face and voice are starting again." if game.stop_tasks else ""))
+    for line in done:
+        print(f"  {line}")
+    return 0
+
+
+def cmd_printer(args: argparse.Namespace) -> int:
+    """The Centauri Carbon 2: find it, check the access code, or ask the
+    agent how the print is going."""
+    import json as _json
+
+    from .monitors import printer as printer_mod
+
+    config = load_config(args.config)
+    if args.action == "discover":
+        found = printer_mod.discover(config.printer.host, timeout=4.0)
+        if not found:
+            print("no Centauri Carbon 2 answered (is it on, and on this network?)")
+            return 1
+        for p in found:
+            print(f"{p['name'] or p['model']}  {p['host']}  sn {p['sn']}"
+                  + ("  (needs printer.access_code)" if p["needs_code"] else ""))
+        return 0
+
+    if args.action == "local":
+        # The local 3D generator: is every piece where sculpting expects it?
+        from . import sculpt
+        from .commands.printer import local_generator
+
+        local = local_generator(_build_context(config))
+        weights = local.weights / local.model / local.subfolder / "model.fp16.safetensors"
+        for label, ok, where in (
+            ("python", local.python.is_file(), local.python),
+            ("Hunyuan3D-2 code", (local.repo / "hy3dgen").is_dir(), local.repo),
+            ("weights", weights.is_file(), weights),
+        ):
+            print(f"{'ok ' if ok else 'MISSING'}  {label:18} {where}")
+        using = sculpt.where(config.printer.sculpt_backend, local)
+        print(f"sculpt_backend is {config.printer.sculpt_backend}: shapes are made "
+              + ("on this PC" if using == "local" else "on Hugging Face"))
+        return 0 if local.ready else 1
+
+    if args.action == "test":
+        # A connection of our own, separate from the agent's, to prove the code.
+        cfg = config.printer
+        if args.code:
+            cfg.access_code = args.code
+        cfg.enabled = True
+        watch = printer_mod.PrinterWatch(cfg)
+        watch.start()
+        deadline = time.monotonic() + 20
+        while time.monotonic() < deadline:
+            status = watch.status()
+            if status.get("state") or status.get("error"):
+                break
+            time.sleep(0.5)
+        watch.stop()
+        status = watch.status()
+        print(_json.dumps(status, indent=2))
+        return 0 if status.get("state") else 1
+
+    from .commands.printer import describe
+
+    from .state import read_state
+
+    state = read_state(Path(config.state_file))
+    printer = (state or {}).get("printer")
+    if not config.printer.enabled:
+        print("printer.enabled is false - `arnold printer discover`, then set the printer section")
+        return 1
+    if not printer:
+        print("the agent is not running, or has not reported on the printer yet")
+        return 1
+    print(describe(printer))
+    return 0
+
+
 def cmd_gen_secret(args: argparse.Namespace) -> int:
     from .security import generate_secret as gen
 
@@ -1174,6 +1341,24 @@ def build_parser() -> argparse.ArgumentParser:
     wake.add_argument("--data-dir", dest="data_dir", help="train: where the assets live")
     wake.add_argument("--stage", help="train: comma-separated subset of generate,augment,train")
     wake.set_defaults(func=cmd_wake)
+
+    game = subparsers.add_parser(
+        "game", help="stop everything and boost the PC while you play (`on`), undo it (`off`), or `watch` for game launches"
+    )
+    game.add_argument("action", nargs="?", choices=("on", "off", "status", "watch", "scaling"),
+                      default="status")
+    game.add_argument("--install", action="store_true",
+                      help="watch: register the logon task that boosts games as they launch; "
+                           "scaling: register the elevated task that starts Lossless Scaling")
+    game.add_argument("--remove", action="store_true", help="watch/scaling: remove that task")
+    game.set_defaults(func=cmd_game)
+
+    printer = subparsers.add_parser(
+        "printer", help="the Elegoo printer: `discover` it, `test` the access code, or `status`"
+    )
+    printer.add_argument("action", nargs="?", choices=("status", "discover", "test", "local"), default="status")
+    printer.add_argument("--code", default="", help="test: try this access code instead of the config's")
+    printer.set_defaults(func=cmd_printer)
 
     secret = subparsers.add_parser("gen-secret", help="generate a shared secret for command signing")
     secret.set_defaults(func=cmd_gen_secret)

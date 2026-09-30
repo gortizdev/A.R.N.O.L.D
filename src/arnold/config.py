@@ -134,9 +134,10 @@ BUILTIN_PROFILES: dict[str, dict[str, Any]] = {
         "name": "Arnold",
         "title": "A.R.N.O.L.D.",
         "motto": "A Rather Nice, Ordinary, Loyal Daemon",
-        # A warm, well-spoken male voice; the cheek is in the persona and
-        # delivery (voice/session_config.py). Jarvis keeps cedar.
-        "voice": "ballad",
+        # A low, steady male voice; the Scottish accent and the cheek are in the persona and delivery
+        # (voice/session_config.py). ballad sat too high and cracked on
+        # emphasis. Jarvis keeps cedar.
+        "voice": "ash",
         "mirror_jarvis": False,
         "wake_word": "hey_arnold",
         "palette": "steel",
@@ -256,6 +257,9 @@ class SshConfig:
 
 @dataclass(slots=True)
 class JarvisConfig:
+    # False = the Pi is off: nothing on this PC tries to reach it. Speech stays
+    # local, and the Jarvis and Home Assistant voice tools are not offered.
+    enabled: bool = True
     # home_assistant -> POST HA REST API (recommended: LAN-native, authenticated)
     # ssh            -> ssh to the Pi and curl its loopback :8765/say
     # none           -> speech disabled, telemetry/alerts only
@@ -344,6 +348,9 @@ class VoiceConfig:
     # round trip to the TTS API every time the wake word fires.
     wake_ack_cache_dir: str = "models/ack"
     wake_ack_volume: float = 0.7
+    # How fast the realtime voice talks: 1.0 is the model's own pace, 0.25 to
+    # 1.5 is allowed. A touch over 1 keeps it brisk without sounding rushed.
+    speed: float = 1.0
 
     # -- Turn-taking (realtime mode) ---------------------------------------
     # How it decides you have finished a sentence.
@@ -892,6 +899,93 @@ from .graph_mail import MailConfig  # noqa: E402
 
 
 @dataclass(slots=True)
+class PrinterConfig:
+    """The Elegoo Centauri Carbon 2 on the LAN (monitors/printer.py).
+
+    The agent holds the one connection; the dashboard and the voice read
+    what it writes to the state file. Read-only: it never touches a print.
+
+    printer.make is the other half: parts written as OpenSCAD, rendered to
+    STL and opened in Elegoo Slicer. It needs neither the connection nor
+    `enabled` - the slicer is where a person decides to print.
+    """
+
+    enabled: bool = False
+    # Blank = found by broadcast. Set it if the router hands out a fixed
+    # address, and discovery is skipped.
+    host: str = ""
+    serial: str = ""
+    # The code under Settings > Network on the printer's screen.
+    access_code: str = ""
+    # Say aloud when a print starts, pauses, finishes, stops or errors.
+    speak_started: bool = False
+    speak_finished: bool = True
+    speak_problems: bool = True
+    respect_quiet_hours: bool = True
+
+    # -- making models, for printer.make ---------------------------------------
+    # OpenSCAD renders the part the model writes. Blank = found in Program Files.
+    openscad: str = ""
+    # Elegoo Slicer opens the result for a look before printing. Blank = found
+    # in Program Files.
+    slicer: str = ""
+    # The build volume's longest side, mm. A part bigger than this is refused
+    # so it comes back scaled rather than landing in the slicer off the plate.
+    max_size_mm: float = 256.0
+    # Seconds OpenSCAD gets to render before the part is given up on.
+    render_timeout: int = 90
+    # The filament usually loaded: the slicer settings suggested with each
+    # part (the Workshop, printer.settings) use its temperatures and weight.
+    filament: str = "PLA"
+
+    # -- sculpting, for printer.sculpt ------------------------------------------
+    # Organic shapes: a picture drawn by OpenAI's image model, turned into a
+    # mesh by a Hunyuan3D-2 Hugging Face Space, cleaned and scaled (sculpt.py).
+    sculpt_enabled: bool = True
+    sculpt_image_model: str = "gpt-image-1"
+    # printer.adjust: the model that edits a sculpture's picture (it keeps
+    # what was not asked to change), and the one that edits a designed part's
+    # OpenSCAD.
+    adjust_image_model: str = "gpt-image-1.5"
+    adjust_code_model: str = "gpt-5.4-mini"
+    sculpt_space: str = "tencent/Hunyuan3D-2"
+    # The views drawn for each sculpture: "front-side-back" is a turnaround
+    # sheet of three, so the back is seen and the depth is too; "front-back"
+    # leaves out the side; "front" is one view.
+    sculpt_views: str = "front-side-back"
+    # Asked which way a sheet's side view faces, so the shape model is told
+    # left or right correctly. A vision model; this costs a fraction of a cent.
+    sculpt_check_model: str = "gpt-5.4-mini"
+    # Asks the questions that turn a short request into a precise description
+    # before sculpting (printer.brief, the Workshop's Sculpt button).
+    sculpt_ask_model: str = "gpt-5.4-mini"
+    # Where the shape is made: "auto" is this PC's GPU when the local
+    # generator is set up (models/hy3d) and the Space otherwise; or "local",
+    # or "space".
+    sculpt_backend: str = "auto"
+    # The Space for several views at once.
+    sculpt_mv_space: str = "tencent/Hunyuan3D-2mv"
+    # The local generator: its own Python, and the Hunyuan3D-2 checkout.
+    # Blank = models/hy3d beside this config. README, "Local 3D generator".
+    sculpt_local_python: str = ""
+    sculpt_local_repo: str = ""
+    sculpt_local_model: str = "tencent/Hunyuan3D-2mv"
+    # The turbo model needs 5 steps rather than 30-50, for much the same shape.
+    sculpt_local_subfolder: str = "hunyuan3d-dit-v2-mv-turbo"
+    sculpt_local_steps: int = 5
+    # Blank = HF_TOKEN, then the `hf auth login` token. Signed in, the Space's
+    # free GPU allowance is larger than anonymous.
+    sculpt_hf_token: str = ""
+    # Height of the part when none is asked for, mm.
+    sculpt_height_mm: float = 60.0
+    # The generator makes about half a million triangles; far more than a
+    # 0.4 mm nozzle can show.
+    sculpt_max_faces: int = 150000
+    # Seconds the Space gets, queue included.
+    sculpt_timeout: int = 600
+
+
+@dataclass(slots=True)
 class TodoConfig:
     """The to-do list on the dashboard, and the weekly document it is filled
     from.
@@ -913,6 +1007,9 @@ class TodoConfig:
     # rather than "nothing".
     source_name: str = "geo update"
     weekday: str = "wednesday"
+    # The update only ever comes on `weekday`, so the automatic scan only runs
+    # then. `todo.sync` (and the page's button) still looks on any day.
+    weekday_only: bool = True
     # Folders to look in. Blank = OneDrive's "Email attachments" and the new
     # Outlook's attachment cache. Environment variables and ~ are expanded.
     watch_folders: list[str] = field(default_factory=list)
@@ -925,6 +1022,84 @@ class TodoConfig:
     # The inbox itself, through Microsoft Graph: the first place looked, once
     # someone has signed in. The folders above remain the fallback.
     mail: MailConfig = field(default_factory=MailConfig)
+
+
+@dataclass(slots=True)
+class GameConfig:
+    """Game mode: what `arnold game on` does beyond stopping the tasks, and
+    how `arnold game watch` recognises a game starting. See booster.py.
+
+    The boost is what Razer Cortex does on launch - a performance power plan,
+    background apps closed, memory handed back, the game's priority raised -
+    and all of it is undone when the game ends.
+    """
+
+    # False = game mode only stops the tasks, as it always did.
+    boost: bool = True
+    stop_tasks: bool = True
+    # "high", "ultimate", "balanced", a plan's name as `powercfg /list` shows
+    # it, or its GUID. Blank = leave the power plan alone.
+    power_plan: str = "high"
+    # Executable names (wildcards allowed) closed for the game and, with
+    # reopen_apps, started again afterwards.
+    close_apps: list[str] = field(
+        default_factory=lambda: ["OneDrive.exe", "Widgets.exe", "PhoneExperienceHost.exe"]
+    )
+    reopen_apps: bool = True
+    # Trim every other process's working set, so the game has the RAM.
+    trim_memory: bool = True
+    # "high", "above_normal", or blank to leave it.
+    game_priority: str = "high"
+
+    # -- recognising a game, for `arnold game watch` -------------------------
+    # Executable names (wildcards allowed) that are always a game.
+    games: list[str] = field(default_factory=list)
+    # A process whose executable sits under one of these (case-insensitive
+    # path fragments) is a game.
+    game_folders: list[str] = field(
+        default_factory=lambda: [
+            r"steamapps\common",
+            r"Epic Games",
+            r"XboxGames",
+            r"GOG Galaxy\Games",
+            r"Riot Games",
+            r"EA Games",
+            r"Ubisoft Game Launcher\games",
+        ]
+    )
+    # Never a game, even under a game folder: wallpaper engines, crash
+    # reporters, anti-cheat services and installers live there too.
+    ignore: list[str] = field(
+        default_factory=lambda: [
+            "wallpaper32.exe", "wallpaper64.exe", "webwallpaper*.exe", "ui32.exe",
+            "LosslessScaling.exe", "*overlay*.exe",
+            "*crash*.exe", "*report*.exe", "EasyAntiCheat*.exe", "BEService*.exe",
+            "*setup*.exe", "*redist*.exe", "vc_redist*.exe", "dxsetup.exe",
+            "*launcher*.exe", "*updater*.exe",
+        ]
+    )
+    scan_seconds: float = 3.0
+    # How long no game must be running before the boost is undone - launchers
+    # often close the game and start it again (updates, anti-cheat restarts).
+    exit_grace_seconds: float = 20.0
+
+    # -- Lossless Scaling, for `arnold game watch` -----------------------------
+    # Start it with the game and press its hotkey once the game is in front.
+    # Games with an AutoScale profile of their own are left to it. See
+    # lossless.py.
+    scaling: bool = True
+    # Blank = found under the Steam libraries.
+    scaling_exe: str = ""
+    # Executable names (wildcards allowed) to scale; empty = every game.
+    scaling_games: list[str] = field(default_factory=list)
+    # How long the game's window must stay in front before the hotkey - the
+    # window has to be the real game, not a splash screen or a loading box.
+    scaling_delay_seconds: float = 8.0
+    # Give up if its window has not come to the front by then.
+    scaling_timeout_seconds: float = 180.0
+    # A Lossless Scaling that has only just started ignores its hotkey until
+    # it has finished loading.
+    scaling_warmup_seconds: float = 10.0
 
 
 @dataclass(slots=True)
@@ -951,6 +1126,8 @@ class Config:
     proactive: ProactiveConfig = field(default_factory=ProactiveConfig)
     schedule: ScheduleConfig = field(default_factory=ScheduleConfig)
     todo: TodoConfig = field(default_factory=TodoConfig)
+    printer: PrinterConfig = field(default_factory=PrinterConfig)
+    game: GameConfig = field(default_factory=GameConfig)
     alerts: list[dict[str, Any]] = field(default_factory=list)
     log_level: str = "INFO"
     log_file: str = ""
@@ -1120,6 +1297,9 @@ class Config:
         'auto', which only speaks here when the Pi could not be reached.
         """
         chosen = (self.speech.route or "").strip().lower()
+        if not self.jarvis.enabled:
+            # With the Pi off, every route that would try it speaks here.
+            return "none" if chosen == "none" else "local"
         if chosen:
             return chosen
         return "none" if self.jarvis.speech_route == "none" else "auto"
@@ -1193,7 +1373,7 @@ class Config:
             problems.append(
                 f"jarvis.speech_route {route!r} is not one of: home_assistant, ssh, none"
             )
-        if route == "home_assistant" and not self.jarvis.home_assistant.token:
+        if self.jarvis.enabled and route == "home_assistant" and not self.jarvis.home_assistant.token:
             problems.append(
                 "jarvis.speech_route is home_assistant but jarvis.home_assistant.token is empty "
                 "- create a long-lived access token in your HA profile page"
@@ -1334,6 +1514,8 @@ def load_config(path: str | Path | None = None) -> Config:
         proactive=_build(ProactiveConfig, raw.get("proactive"), "proactive"),
         schedule=_build(ScheduleConfig, raw.get("schedule"), "schedule"),
         todo=todo,
+        printer=_build(PrinterConfig, raw.get("printer"), "printer"),
+        game=_build(GameConfig, raw.get("game"), "game"),
         memory=_build(MemoryConfig, raw.get("memory"), "memory"),
         outlook=_build(OutlookConfig, raw.get("outlook"), "outlook"),
         notifications=_build(NotificationsConfig, raw.get("notifications"), "notifications"),
