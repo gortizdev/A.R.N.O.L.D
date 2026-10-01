@@ -389,7 +389,16 @@ class Voice:
             audio, rate = speaker.synthesize(text)
         except Exception as exc:
             log.warning("could not synthesise speech (%s)", str(exc)[:120])
-            return False
+            # OpenAI carries Piper as its safety net; use it here too, or a
+            # TTS hiccup costs the line entirely.
+            fallback = getattr(speaker, "fallback", None)
+            if fallback is None:
+                return False
+            try:
+                audio, rate = fallback.synthesize(text)
+            except Exception as exc2:
+                log.warning("the fallback voice failed as well (%s)", str(exc2)[:120])
+                return False
         # The length, not the words. Some of what passes through here is read
         # off the user's screen, and the log outlives the sentence.
         log.info("said here (%d characters)", len(text))

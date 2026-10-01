@@ -122,6 +122,10 @@ def from_change(change: str) -> Addons:
     found = implied(text)
     if re.search(r"\bhollow", text, re.I) and found.hollow is None:
         found.hollow = dict(_DEFAULTS["hollow"], open="top" if re.search(r"\b(top|open)\b", text, re.I) else "")
+    # "Add a plinth" - the word is only ever the feature. A base or a stand
+    # needs "on a" or "with a": "make the base wider" is about the figure.
+    if re.search(r"\bplinth\b", text, re.I) and found.plinth is None:
+        found.plinth = dict(_DEFAULTS["plinth"])
     if not found.any():
         return Addons()
     rest = re.sub(r"\bhollow\w*|\bmagnet\w*|\bkey ?(?:ring|chain)\w*|\bstand\b|\bplinth\b|\bbase\b", "", text, flags=re.I)

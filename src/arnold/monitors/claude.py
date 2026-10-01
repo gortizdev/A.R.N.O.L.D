@@ -92,17 +92,58 @@ def _excerpt(text: str, limit: int = 220) -> str:
         at = cut.rfind(mark)
         if at > limit // 2:
             return cut[: at + 1]
-    return cut.rstrip() + "\u2026"
+    # Never end on half a word: "settings c..." reads as a stutter.
+    space = cut.rfind(" ")
+    if space > limit // 2:
+        cut = cut[:space]
+    return cut.rstrip(" ,;:-\u2014") + "\u2026"
+
+
+# A link's target may itself hold one level of brackets: app/(tabs)/news.tsx.
+_LINK_RE = re.compile(r"\[([^\]]+)\]\((?:[^()\s]|\([^()\s]*\))*\)")
+_TABLE_RULE_RE = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$")
+_LIST_RE = re.compile(r"^\s*(?:[-*+]|\d{1,3}[.)])\s+")
 
 
 def _strip_markup(text: str) -> str:
-    """Markdown headings, bold, code fences and links, for speaking aloud."""
+    """Markdown made fit to be read aloud.
+
+    Not just removed: a heading, list item or table row is a sentence of its
+    own on screen, so it is given a full stop here. Run together without one,
+    "1. Generate the model" and the line after it become a single breathless
+    sentence, and tables become a recital of pipes and dashes - the kind of
+    input the TTS model is most likely to stumble over.
+    """
     text = re.sub(r"```.*?```", " ", text, flags=re.S)
     text = re.sub(r"`([^`]*)`", r"\1", text)
-    text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)
-    text = re.sub(r"^\s{0,3}#{1,6}\s*", "", text, flags=re.M)
-    text = re.sub(r"[*_]{1,3}([^*_]+)[*_]{1,3}", r"\1", text)
-    text = re.sub(r"^\s*[-*|]\s*", "", text, flags=re.M)
+    text = _LINK_RE.sub(r"\1", text)
+    text = re.sub(r"<?https?://([^\s>)]+)>?", r"\1", text)
+    lines = []
+    for line in text.splitlines():
+        if _TABLE_RULE_RE.match(line) or re.match(r"^\s*([-*_])(\s*\1){2,}\s*$", line):
+            continue  # a table's |---| rule, or a horizontal rule
+        structural = False
+        if re.match(r"^\s{0,3}#{1,6}\s", line):
+            line = re.sub(r"^\s{0,3}#{1,6}\s*", "", line)
+            structural = True
+        if line.lstrip().startswith("|"):
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            line = ", ".join(c for c in cells if c)
+            structural = True
+        if _LIST_RE.match(line):
+            line = _LIST_RE.sub("", line)
+            structural = True
+        if line.lstrip().startswith(">"):
+            line = re.sub(r"^\s*>+\s?", "", line)
+        line = line.strip()
+        if structural and line and line[-1] not in ".!?:;,":
+            line += "."
+        lines.append(line)
+    text = "\n".join(lines)
+    # Emphasis, but only as markup: snake_case names keep their underscores.
+    text = re.sub(r"\*{1,3}([^*\n]+?)\*{1,3}", r"\1", text)
+    text = re.sub(r"(?<![\w\\])_{1,3}([^_\n]+?)_{1,3}(?!\w)", r"\1", text)
+    text = re.sub(r"\s*(?:\u2192|->|=>)\s*", " to ", text)
     return text
 
 

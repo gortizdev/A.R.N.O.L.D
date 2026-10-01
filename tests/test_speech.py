@@ -447,3 +447,61 @@ def test_the_agent_speaks_through_the_voice_not_the_pi_client():
         f"service.py:{offenders} calls self.jarvis.say directly. Use self.speech.say, "
         "or a Pi that is switched off silently swallows it."
     )
+
+
+class TestRunawayTTS:
+    """gpt-4o-mini-tts sometimes streams minutes of audio for one sentence."""
+
+    def speaker(self, streams):
+        from arnold.voice.openai_tts import OpenAISpeaker
+
+        class Response:
+            def __init__(self, chunks):
+                self.chunks = chunks
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def iter_bytes(self, size):
+                yield from self.chunks
+
+        calls = []
+
+        class Streaming:
+            def create(self, **kwargs):
+                calls.append(kwargs)
+                return Response(streams[len(calls) - 1])
+
+        s = OpenAISpeaker.__new__(OpenAISpeaker)
+        s.model, s.voice, s.instructions = "m", "v", ""
+        s._client = type("C", (), {})()
+        s._client.audio = type("A", (), {})()
+        s._client.audio.speech = type("S", (), {"with_streaming_response": Streaming()})()
+        return s, calls
+
+    def test_a_runaway_is_retried_once(self):
+        from arnold.voice.openai_tts import TTSRunaway
+
+        endless = [b"\0" * 48000] * 100  # 100 seconds for a two-word line
+        s, calls = self.speaker([endless, [b"\0" * 4800]])
+        audio, rate = s.synthesize("hello there")
+        assert len(calls) == 2 and len(audio) == 2400 and rate == 24000
+
+        s, calls = self.speaker([endless, endless])
+        with pytest.raises(TTSRunaway):
+            s.synthesize("hello there")
+
+    def test_a_failed_synthesis_falls_back_to_piper(self, voice, played):
+        class Broken(FakeSpeaker):
+            def synthesize(self, text):
+                raise RuntimeError("ran away")
+
+        speaker = Broken()
+        speaker.fallback = FakeSpeaker()
+        v = voice(speaker=speaker, route="local")
+        v.say("still said")
+        assert wait_for(lambda: played)
+        assert speaker.fallback.said == ["still said"]

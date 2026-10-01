@@ -311,7 +311,8 @@ def is_game(name: str, exe: str, game: GameConfig) -> bool:
     if game.games and _matches(name, game.games):
         return True
     path = exe.lower().replace("/", "\\")
-    return any(f.lower().replace("/", "\\") in path for f in game.game_folders if f)
+    under = lambda folders: any(f.lower().replace("/", "\\") in path for f in folders if f)  # noqa: E731
+    return under(game.game_folders) and not under(game.ignore_folders)
 
 
 def _describe(pid: int) -> tuple[str, str]:

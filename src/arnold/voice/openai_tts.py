@@ -20,10 +20,15 @@ import io
 import logging
 import os
 import threading
+import time
 
 import numpy as np
 
 log = logging.getLogger(__name__)
+
+
+class TTSRunaway(RuntimeError):
+    """The model kept generating far past what the text could take to say."""
 
 # Mirrors the accent section of Jarvis's realtime prompt, condensed to a
 # delivery instruction. Keep both in step or the two machines drift apart.
@@ -74,16 +79,49 @@ class OpenAISpeaker:
         return self._playing.is_set()
 
     def synthesize(self, text: str) -> tuple[np.ndarray, int]:
-        """Return 24 kHz mono PCM. Raises so callers can fall back."""
-        response = self._client.audio.speech.create(
+        """Return 24 kHz mono PCM. Raises so callers can fall back.
+
+        gpt-4o-mini-tts now and then runs away with a line - babbling,
+        repeating itself or padding with silence - and keeps streaming for
+        minutes. The client's timeout is per read, so nothing stops that, and
+        the speech worker would sit through all of it and then play it. So the
+        audio is capped at a generous multiple of what the text could take to
+        say, the whole request at a wall-clock deadline, and a runaway is tried
+        once more before giving up: the glitch rarely repeats.
+        """
+        text = text[:4000]
+        try:
+            return self._synthesize_bounded(text)
+        except TTSRunaway as exc:
+            log.warning("openai tts ran away (%s); trying once more", exc)
+            return self._synthesize_bounded(text)
+
+    def _synthesize_bounded(self, text: str) -> tuple[np.ndarray, int]:
+        rate = 24000
+        max_bytes = int((10.0 + len(text) / 6.0) * rate * 2)
+        deadline = time.monotonic() + 15.0 + len(text) / 15.0
+        chunks: list[bytes] = []
+        size = 0
+        with self._client.audio.speech.with_streaming_response.create(
             model=self.model,
             voice=self.voice,
-            input=text[:4000],
+            input=text,
             instructions=self.instructions,
             response_format="pcm",  # raw 24 kHz s16le: no decoder needed
-        )
-        raw = response.read() if hasattr(response, "read") else response.content
-        return np.frombuffer(raw, dtype=np.int16), 24000
+        ) as response:
+            for chunk in response.iter_bytes(16384):
+                chunks.append(chunk)
+                size += len(chunk)
+                if size > max_bytes:
+                    raise TTSRunaway(
+                        f"{size / (rate * 2):.0f}s of audio for {len(text)} characters"
+                    )
+                if time.monotonic() > deadline:
+                    raise TTSRunaway(f"still streaming after {len(text)} characters' worth of time")
+        raw = b"".join(chunks)
+        if len(raw) % 2:
+            raw = raw[:-1]
+        return np.frombuffer(raw, dtype=np.int16), rate
 
     def say(self, text: str, blocking: bool = True) -> float:
         text = (text or "").strip()

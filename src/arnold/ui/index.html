@@ -740,6 +740,10 @@ textarea.config-text { width: 100%; min-height: 62vh; font: .78rem/1.5 var(--mon
 .step[data-state="warn"] b, .step[data-state="warn"]::before { color: var(--amber); }
 .bench-actions { padding: .75rem 1.1rem 1rem; }
 .bench-actions a.btn { text-decoration: none; }
+/* What the last button said: "it's in the slicer", or why it couldn't. */
+.bench-said { margin: -.35rem 1.1rem .9rem; }
+.bench-said:empty { display: none; }
+.bench-said[data-tone="bad"] { color: var(--rose); }
 
 /* Adjusting a part: one change, a new version. */
 .adjust { padding: 0 1.1rem 1rem; display: grid; gap: .4rem; grid-template-columns: minmax(0, 1fr); }
@@ -1006,7 +1010,7 @@ textarea.config-text { width: 100%; min-height: 62vh; font: .78rem/1.5 var(--mon
             <div class="scan" id="bench-scan"></div>
             <p class="bench-say" id="bench-say" aria-live="polite"></p>
           </div>
-          <div class="bench-empty" id="bench-empty">Nothing made yet. Describe something on the right, or ask out loud: "sculpt me an owl".</div>
+          <div class="bench-empty" id="bench-empty">Nothing made yet. Describe something under Sculpt something, or ask out loud: "sculpt me an owl".</div>
           <div class="bench-hud">
             <div class="bench-top">
               <div class="bench-title"><h3 id="bench-title"></h3><p id="bench-sub"></p></div>
@@ -1020,6 +1024,7 @@ textarea.config-text { width: 100%; min-height: 62vh; font: .78rem/1.5 var(--mon
         </div>
         <ol class="steps" id="steps" aria-label="How it is made"></ol>
         <div class="row bench-actions" id="bench-actions"></div>
+        <p class="hint bench-said" id="bench-said" aria-live="polite"></p>
         <form class="adjust" id="adjust-form" hidden>
           <div class="adjust-row">
             <span class="adjust-tag">Adjust</span>
@@ -3582,9 +3587,10 @@ class Viewer {
   }
 }
 
-const BENCH = { viewer: null, thumbs: null, models: new Map(), scad: new Map(), loading: "" };
+const BENCH = { viewer: null, thumbs: null, models: new Map(), scad: new Map(), loading: "", shown: null };
 const WORKSHOP = { parts: [], selected: (hashView === "workshop" && hashSub) || PREFS.get("part", ""), filter: "all", timer: null,
-                   loading: false, known: null, picture: null, adjustPicture: null, ask: null };
+                   loading: false, again: false, known: null, picture: null, adjustPicture: null, ask: null,
+                   retiring: null, remembered: null };
 const WORKING = ["queued", "drawing", "editing", "tracing", "writing", "shaping", "cleaning", "choosing", "rendering", "checking"];
 const isWorking = (part) => WORKING.includes(part.state);
 
@@ -3602,17 +3608,26 @@ function sizeText(size) {
 }
 function selectedPart() { return WORKSHOP.parts.find((p) => p.name === WORKSHOP.selected) || null; }
 
+function rememberSelected() {
+  WORKSHOP.remembered = WORKSHOP.selected;
+  PREFS.set("part", WORKSHOP.selected);
+  // So the address names the part, and a link to it opens it.
+  if (currentView === "workshop") history.replaceState(null, "", "#workshop:" + WORKSHOP.selected);
+}
+
 function selectPart(name) {
   WORKSHOP.selected = name;
-  PREFS.set("part", name);
-  // So the address names the part, and a link to it opens it.
-  if (currentView === "workshop") history.replaceState(null, "", "#workshop:" + name);
+  // A failed version being tried again is only retired by its own retry.
+  WORKSHOP.retiring = null;
+  rememberSelected();
   renderShelf();
   renderBench();
 }
 
 async function refreshWorkshop() {
-  if (WORKSHOP.loading) return;
+  // Asked again while a list is on its way (a part just started, say): that
+  // list may be from before it, so another follows as soon as it lands.
+  if (WORKSHOP.loading) { WORKSHOP.again = true; return; }
   WORKSHOP.loading = true;
   try {
     const reply = await api("/api/exec", { cmd: "printer.parts", args: { limit: 200 } });
@@ -3630,7 +3645,10 @@ async function refreshWorkshop() {
     WORKSHOP.parts = parts;
     WORKSHOP.finished = finished;
     if (fresh) WORKSHOP.selected = fresh.name;
-    if (!selectedPart()) WORKSHOP.selected = parts.length ? parts[0].name : "";
+    // A part just started may not be in a list asked for before it was.
+    if (!selectedPart() && !WORKSHOP.again) WORKSHOP.selected = parts.length ? parts[0].name : "";
+    // Followed, started from here, or fallen back to: kept for a reload either way.
+    if (WORKSHOP.selected !== WORKSHOP.remembered && selectedPart()) rememberSelected();
     const working = parts.filter(isWorking).length;
     const badge = $("n-workshop");
     badge.textContent = working ? String(working) : "";
@@ -3644,7 +3662,9 @@ async function refreshWorkshop() {
     WORKSHOP.loading = false;
     clearTimeout(WORKSHOP.timer);
     const busy = WORKSHOP.parts.some(isWorking);
-    WORKSHOP.timer = setTimeout(refreshWorkshop, busy ? 1500 : currentView === "workshop" ? 10000 : 30000);
+    const soon = WORKSHOP.again;
+    WORKSHOP.again = false;
+    WORKSHOP.timer = setTimeout(refreshWorkshop, soon ? 0 : busy ? 1500 : currentView === "workshop" ? 10000 : 30000);
   }
 }
 
@@ -3780,10 +3800,13 @@ function renderBench() {
   const viewer = BENCH.viewer;
   $("bench-empty").hidden = !!part;
   $("bench-wait").hidden = true;
+  // What a button said was about the part that was on the bench.
+  if (BENCH.shown !== WORKSHOP.selected) { BENCH.shown = WORKSHOP.selected; benchSay(""); }
   if (!part) {
     for (const id of ["bench-title", "bench-sub", "bench-dims", "bench-flag", "bench-hint", "bench-note"]) $(id).textContent = "";
     $("steps").innerHTML = "";
     $("bench-actions").innerHTML = "";
+    $("bench-actions").dataset.key = "";
     $("ref").innerHTML = '<p class="empty">Pick a part to see where it came from.</p>';
     $("ref").dataset.key = "";
     $("slice").innerHTML = '<p class="empty">Pick a part to see how to slice it.</p>';
@@ -3877,23 +3900,64 @@ async function showModel(part) {
   }
 }
 
+function benchSay(text, bad) {
+  const said = $("bench-said");
+  said.textContent = text || "";
+  if (bad) said.dataset.tone = "bad"; else delete said.dataset.tone;
+}
+
+/* A button's work, shown on the button while it runs - a check reviews renders
+   and can take a while - and what came of it said under the buttons, since
+   the log it also goes to is on another tab. `quiet` keeps a success unsaid:
+   a part that starts shows itself on the bench. */
+async function benchRun(button, busy, work, quiet = false) {
+  const label = button.textContent;
+  button.disabled = true;
+  button.textContent = busy;
+  benchSay("");
+  try {
+    const reply = await work();
+    if (reply && (!reply.ok || !quiet)) benchSay(reply.ok ? reply.speech : reply.error, !reply.ok);
+  } catch (err) {
+    benchSay(err.message, true);
+  } finally {
+    button.disabled = false;
+    button.textContent = label;
+  }
+}
+
 function renderActions(part) {
   const box = $("bench-actions");
+  const retry = part.state === "failed" ? retryFor(part) : null;
+  // Rebuilt only when the buttons would change: while anything is being made
+  // this runs every second and a half, and a rebuilt button loses a click
+  // half-made, the keyboard's focus, and the state of one still working.
+  const key = [part.name, part.state, part.picture || "", part.prompt ? "w" : "", retry ? retry.label : ""].join(":");
+  if (box.dataset.key === key) return;
+  box.dataset.key = key;
   box.innerHTML = "";
-  const button = (label, cls, handler) => box.append(el("button", { class: "btn " + cls, type: "button", text: label, onclick: handler }));
+  const button = (label, cls, handler) => {
+    const b = el("button", { class: "btn " + cls, type: "button", text: label });
+    b.addEventListener("click", () => handler(b));
+    box.append(b);
+  };
   if (part.state === "done") {
-    button("Open in slicer", "btn-primary", () => partCommand("printer.open", { name: part.name }));
+    button("Open in slicer", "btn-primary", (b) => benchRun(b, "Opening…", () => partCommand("printer.open", { name: part.name })));
     box.append(el("a", { class: "btn btn-quiet", href: partUrl(part.name, "stl"),
                          download: part.title.replace(/[^\w -]+/g, "").trim() + ".stl", text: "Download STL" }));
-    button("Check it", "btn-quiet", async () => { await partCommand("printer.check", { name: part.name }); refreshWorkshop(); });
+    button("Check it", "btn-quiet", (b) => benchRun(b, "Checking…", async () => {
+      const reply = await partCommand("printer.check", { name: part.name });
+      refreshWorkshop();
+      return reply;
+    }));
     if (part.kind === "sculpt" && part.picture) {
-      button("Another take", "btn-quiet", () => sculptAgain(part));
+      button("Another take", "btn-quiet", (b) => benchRun(b, "Starting…", () => sculptAgain(part), true));
     }
     if (part.kind === "sculpt" && part.prompt) {
       button("Remix the words", "btn-quiet", () => { $("sculpt-prompt").value = part.prompt; $("sculpt-prompt").focus(); });
     }
-  } else if (part.state === "failed" && part.picture) {
-    button("Try again", "btn-primary", () => sculptAgain(part));
+  } else if (retry) {
+    button(retry.label, "btn-primary", (b) => benchRun(b, "Starting…", retry.run, true));
   }
   if (!isWorking(part)) {
     const del = el("button", { class: "btn btn-danger row-end", type: "button", text: "Delete",
@@ -3968,6 +4032,10 @@ $("adjust-form").addEventListener("submit", async (event) => {
       log(reply);
       return;
     }
+    // A failed version tried again from here is replaced by this one.
+    const retired = WORKSHOP.retiring;
+    WORKSHOP.retiring = null;
+    if (retired && retired.parent === part.name) await partCommand("printer.forget", { name: retired.name });
     if (reply.result && reply.result.name) WORKSHOP.selected = reply.result.name;
     clearAdjustPicture();
     refreshWorkshop();
@@ -4016,8 +4084,70 @@ async function partCommand(cmd, args) {
 async function sculptAgain(part) {
   const reply = await partCommand("printer.sculpt", { again: part.name, open: false });
   if (reply.ok && reply.result && reply.result.name) WORKSHOP.selected = reply.result.name;
-  sculptNote(reply.ok ? "" : reply.error, !reply.ok);
   refreshWorkshop();
+  return reply;
+}
+
+/* How a failed part is tried again - each the way it was first made:
+   - a version goes back to the part it came from, with its change already
+     in the Adjust box to send as it was or reword (often why it failed);
+   - a sculpture with its picture is shaped again from it, as before;
+   - a sculpture that failed before it had a picture, or a designed part,
+     is asked for again with the same words (and concept picture).
+   The failed one is deleted once its retry is under way. */
+function retryFor(part) {
+  if (part.parent) {
+    const parent = WORKSHOP.parts.find((p) => p.name === part.parent);
+    return parent && parent.state === "done" ? { label: "Try again", run: async () => retryVersion(part, parent) } : null;
+  }
+  if (part.kind === "sculpt" && part.picture) return { label: "Try again", run: () => sculptAgain(part) };
+  if (part.prompt && (part.kind === "sculpt" || part.mode === "design")) return { label: "Try again", run: () => askAgain(part) };
+  return null;
+}
+
+// Changes the catalog makes up itself, rather than words anyone asked for.
+const MADE_UP_CHANGE = /^(resized to .* mm tall|put the picture on it as an emblem)$/;
+
+function retryVersion(part, parent) {
+  selectPart(parent.name);
+  const form = $("adjust-form");
+  if (form.hidden) return null;
+  WORKSHOP.retiring = { name: part.name, parent: parent.name };
+  const change = MADE_UP_CHANGE.test(part.change || "") ? "" : part.change || "";
+  if (!$("adjust-change").disabled) $("adjust-change").value = change;
+  if (parent.kind !== "make" && ["resize", "picture"].includes(part.mode) && part.height_mm)
+    $("adjust-height").value = Math.round(part.height_mm);
+  const hint = $("adjust-hint");
+  delete hint.dataset.tone;
+  hint.textContent = part.mode === "restyle" && !change
+    ? "Trying it again: add the emblem picture again with Emblem…, then Adjust."
+    : "Trying it again: Adjust sends it as it was - or reword it first.";
+  (change || $("adjust-change").disabled ? $("adjust-go") : $("adjust-change")).focus();
+  return null;
+}
+
+async function askAgain(part) {
+  let reply;
+  if (part.kind === "make") {
+    const args = { title: part.title, prompt: part.prompt, emblem: !!part.emblem, open: false };
+    if (part.picture) {
+      // The concept it was designed from goes back up as the picture it was given.
+      const bytes = await partBytes(part.name, part.picture);
+      args.image = await uploadPicture(new File([bytes], part.name + "." + part.picture));
+    }
+    reply = await partCommand("printer.design", args);
+  } else {
+    // It was a sculpture before: no rerouting it to a design this time.
+    const args = { title: part.title, prompt: part.prompt, height_mm: part.height_mm || "", organic: true, open: false };
+    if (part.addons) args.addons = part.addons;
+    reply = await partCommand("printer.sculpt", args);
+  }
+  if (reply.ok) {
+    await partCommand("printer.forget", { name: part.name });
+    if (reply.result && reply.result.name) WORKSHOP.selected = reply.result.name;
+  }
+  refreshWorkshop();
+  return reply;
 }
 
 async function forgetPart(part) {

@@ -670,3 +670,40 @@ class TestLink:
         s = Session(id=SID, path=Path("x"), cwd="C:\\w", pid=5, socket="")
         with pytest.raises(claude_link.LinkError, match="not taking messages"):
             claude_link.deliver(s, "hi", ClaudeConfig(), home=Path("."))
+
+
+class TestSpokenReply:
+    """Replies are read aloud, so markdown has to become sentences."""
+
+    def speak(self, text, limit=300):
+        from arnold.monitors.claude import _excerpt, _strip_markup
+
+        return _excerpt(_strip_markup(text), limit)
+
+    def test_a_link_whose_path_has_brackets_is_removed_whole(self):
+        said = self.speak("Changed the header in [news.tsx](app/(tabs)/news.tsx). Done.")
+        assert said == "Changed the header in news.tsx. Done."
+
+    def test_snake_case_names_keep_their_underscores(self):
+        said = self.speak("Updated `coa_template.html` and metals_analytes, which is _really_ it.")
+        assert said == "Updated coa_template.html and metals_analytes, which is really it."
+
+    def test_headings_and_list_items_become_sentences(self):
+        said = self.speak(
+            "In priority order:\n\n## 1. Bugs worth fixing now\n\n"
+            "- **\"Suggested photos\"** only works in dev\n2. Second thing"
+        )
+        assert said == (
+            'In priority order: Bugs worth fixing now. "Suggested photos" only works in dev. Second thing.'
+        )
+
+    def test_tables_rules_urls_and_arrows_are_not_recited(self):
+        said = self.speak(
+            "Two kinds:\n\n| Approach | Good for |\n|---|:---:|\n| Parametric (code → CAD) | Parts |\n\n"
+            "---\n\nOpen http://localhost:8501 now."
+        )
+        assert said == "Two kinds: Approach, Good for. Parametric (code to CAD), Parts. Open localhost:8501 now."
+
+    def test_a_long_run_is_cut_between_words(self):
+        said = self.speak("word " * 80, limit=100)
+        assert said.endswith("word…")

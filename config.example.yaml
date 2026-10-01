@@ -616,7 +616,9 @@ game:
   game_priority: high        # high | above_normal | blank
   games: []                  # exe names that are always a game, e.g. [valorant*.exe]
   # game_folders: a process under one of these is a game (defaults: Steam,
-  # Epic, Xbox, GOG, Riot, EA, Ubisoft). ignore: never a game (wallpaper
+  # Epic, Xbox, GOG, Riot, EA, Ubisoft). ignore_folders: under those but the
+  # store's own client, which outlives the game (defaults: Epic's launcher and
+  # Online Services, the Riot Client). ignore: never a game (wallpaper
   # engines, crash reporters, anti-cheat, launchers, installers).
   scan_seconds: 3
   exit_grace_seconds: 20     # no game this long = the boost is undone

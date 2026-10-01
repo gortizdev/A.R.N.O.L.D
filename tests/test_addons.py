@@ -56,6 +56,9 @@ class TestParse:
         ("add a key ring loop", ["keyring"]),
         ("hollow it out", ["hollow"]),
         ("put it on a stand with a magnet", ["plinth", "magnet"]),
+        ("add a plinth", ["plinth"]),
+        ("added plinth, magnet", ["plinth", "magnet"]),  # how a version records its features
+        ("make the base wider", []),
         ("make the inside hollow and give the flap a hinge", []),  # that is a design
         ("bigger eyes", []),
     ])

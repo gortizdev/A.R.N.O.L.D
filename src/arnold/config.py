@@ -1096,6 +1096,17 @@ class GameConfig:
             r"Ubisoft Game Launcher\games",
         ]
     )
+    # Under a game folder, but the store's own client: it stays open after the
+    # game closes (Epic restarts its helpers every half hour, too), and while
+    # it counted as a game the boost - and the stopped assistant - waited for
+    # it to be quit.
+    ignore_folders: list[str] = field(
+        default_factory=lambda: [
+            r"Epic Games\Launcher",
+            r"Epic Games\Epic Online Services",
+            r"Riot Games\Riot Client",
+        ]
+    )
     # Never a game, even under a game folder: wallpaper engines, crash
     # reporters, anti-cheat services and installers live there too.
     ignore: list[str] = field(

@@ -42,6 +42,25 @@ def test_wallpaper_engine_and_crash_handlers_are_not_games():
     assert not booster.is_game("UnityCrashHandler64.exe", root + r"\Foo\UnityCrashHandler64.exe", game)
 
 
+def test_store_clients_are_not_games_but_their_games_are():
+    game = GameConfig()
+    # Left running after Fortnite closed, these held the boost for hours.
+    for name, exe in [
+        ("EpicWebHelper.exe", r"C:\Program Files\Epic Games\Launcher\Engine\Binaries\Win64\EpicWebHelper.exe"),
+        ("EpicOnlineServicesUserHelper.exe",
+         r"C:\Program Files (x86)\Epic Games\Epic Online Services\EpicOnlineServicesUserHelper.exe"),
+        ("EOSBootStrapper.exe", r"C:\Program Files (x86)\Epic Games\Epic Online Services\EOSBootStrapper.exe"),
+        ("RiotClientServices.exe", r"C:\Riot Games\Riot Client\RiotClientServices.exe"),
+    ]:
+        assert not booster.is_game(name, exe, game), name
+    fortnite = r"C:\Program Files\Epic Games\Fortnite\FortniteGame\Binaries\Win64\FortniteClient-Win64-Shipping.exe"
+    assert booster.is_game("FortniteClient-Win64-Shipping.exe", fortnite, game)
+    assert booster.is_game("VALORANT.exe", r"C:\Riot Games\VALORANT\live\VALORANT.exe", game)
+    # A game named outright is one wherever it lives.
+    named = GameConfig(games=["EpicWebHelper.exe"])
+    assert booster.is_game("EpicWebHelper.exe", r"C:\Program Files\Epic Games\Launcher\EpicWebHelper.exe", named)
+
+
 def _watcher(procs, clock, grace=20.0):
     events = []
     game = GameConfig(games=["game.exe"], exit_grace_seconds=grace)
