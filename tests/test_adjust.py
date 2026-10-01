@@ -69,7 +69,7 @@ class TestSculpture:
         new = record(bench, result.result["name"])
         assert new["parent"] == first.result["name"] and new["version"] == 2
         assert new["mode"] == "picture" and new["change"] == "give it a party hat"
-        assert set(new["stages"]) == {"editing", "shaping", "cleaning"}
+        assert set(new["stages"]) == {"editing", "shaping", "cleaning", "checking"}
         assert new["size_mm"][2] == pytest.approx(40, abs=0.01)  # same height as before
         assert bench.edits == [(first.result["name"] + ".png", "give it a party hat", "gpt-image-1.5")]
         assert (bench.dir / (first.result["name"] + ".stl")).exists()  # original kept

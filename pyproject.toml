@@ -73,7 +73,7 @@ wake-train = [
 ]
 # printer.sculpt: an AI-made mesh from a Hugging Face Space, cleaned and
 # scaled into a printable STL. fast_simplification is trimesh's decimator.
-sculpt = ["gradio_client>=1.0", "trimesh>=4.0", "fast_simplification>=0.1"]
+sculpt = ["gradio_client>=1.0", "trimesh>=4.0", "fast_simplification>=0.1", "scipy>=1.10", "rtree>=1.0", "manifold3d>=2.0", "scikit-image>=0.22"]
 dev = ["pytest>=8.0.0"]
 
 [project.scripts]

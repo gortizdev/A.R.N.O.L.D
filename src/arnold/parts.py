@@ -34,9 +34,11 @@ FILE_TYPES = {
     "webp": "image/webp",
     "glb": "model/gltf-binary",
     "scad": "text/plain; charset=utf-8",
+    # A designed part's emblem, traced from a picture (emblem.py).
+    "svg": "image/svg+xml",
 }
 PICTURES = ("png", "jpg", "jpeg", "webp")
-WORKING = ("queued", "drawing", "editing", "writing", "shaping", "cleaning", "rendering")
+WORKING = ("queued", "drawing", "editing", "tracing", "writing", "shaping", "cleaning", "choosing", "rendering", "checking")
 
 
 def valid(stem: str) -> bool:

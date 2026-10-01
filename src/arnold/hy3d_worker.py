@@ -30,9 +30,10 @@ def main() -> int:
     parser.add_argument("--view", action="append", default=[], help="front=path, back=path, ...")
     parser.add_argument("--model", default="tencent/Hunyuan3D-2mv")
     parser.add_argument("--subfolder", default="hunyuan3d-dit-v2-mv-turbo")
-    parser.add_argument("--steps", type=int, default=5)
+    parser.add_argument("--steps", type=int, default=20)
     parser.add_argument("--octree", type=int, default=380)
     parser.add_argument("--seed", type=int, default=-1)
+    parser.add_argument("--candidates", type=int, default=1, help="how many shapes, from consecutive seeds")
     parser.add_argument("--flashvdm", action="store_true")
     args = parser.parse_args()
 
@@ -84,21 +85,31 @@ def main() -> int:
             pipeline.enable_flashvdm()
         timings["load"] = time.time() - started
 
+        # Several candidates from one load: loading is most of the time, and
+        # the seed decides a lot - one comes out with a wheel missing where the
+        # next has all four. The first goes to --out, the rest beside it as
+        # <out>.1.glb, <out>.2.glb...
+        base = args.seed if args.seed >= 0 else random.randrange(1 << 30)
+        outputs, seeds, faces = [], [], []
         started = time.time()
-        seed = args.seed if args.seed >= 0 else random.randrange(1 << 31)
-        mesh = pipeline(
-            # The multi-view model takes a dict of views; a plain model one image.
-            image=views if "mv" in args.subfolder else next(iter(views.values())),
-            num_inference_steps=args.steps,
-            octree_resolution=args.octree,
-            num_chunks=20000,
-            generator=torch.manual_seed(seed),
-            output_type="trimesh",
-        )[0]
+        for i in range(max(1, args.candidates)):
+            mesh = pipeline(
+                # The multi-view model takes a dict of views; a plain model one image.
+                image=views if "mv" in args.subfolder else next(iter(views.values())),
+                num_inference_steps=args.steps,
+                octree_resolution=args.octree,
+                num_chunks=20000,
+                generator=torch.manual_seed(base + i),
+                output_type="trimesh",
+            )[0]
+            out = args.out if i == 0 else f"{args.out[:-4] if args.out.lower().endswith('.glb') else args.out}.{i}.glb"
+            mesh.export(out)
+            outputs.append(out)
+            seeds.append(base + i)
+            faces.append(int(len(mesh.faces)))
         timings["shape"] = time.time() - started
-        mesh.export(args.out)
-        print(json.dumps({"ok": True, "faces": int(len(mesh.faces)), "seed": seed,
-                          "views": sorted(views), "seconds": timings,
+        print(json.dumps({"ok": True, "faces": faces[0], "seed": seeds[0], "outputs": outputs,
+                          "seeds": seeds, "views": sorted(views), "seconds": timings,
                           "gpu": torch.cuda.get_device_name(0)}))
         return 0
     except Exception as exc:  # the parent reads this line, whatever went wrong
@@ -111,8 +122,9 @@ def plain_matte(image):
     """Cut the object out of a plain, light background - which is what every
     picture drawn for a sculpture has - or None if the background is not
     plain enough to trust it. Background is whatever light region touches
-    the edge of the picture; everything else is the object, holes and all.
-    Milliseconds, where the AI matting model takes most of a minute."""
+    the edge of the picture, and every gap in the object that shows that
+    same backdrop through it; everything else is the object. Milliseconds,
+    where the AI matting model takes most of a minute."""
     import cv2
     import numpy as np
     from PIL import Image
@@ -130,6 +142,7 @@ def plain_matte(image):
     count, labels = cv2.connectedComponents(light, connectivity=4)
     edge = np.unique(np.concatenate([labels[0], labels[-1], labels[:, 0], labels[:, -1]]))
     background = np.isin(labels, edge[edge > 0]) if count > 1 else np.zeros_like(light, bool)
+    background |= see_through(rgb, grey, labels, background)
     solid = np.where(background, 0, 255).astype(np.uint8)
     # Whatever is left that is only a few pixels thick - the edge of a
     # tabletop, a streak of shadow - is not part of the figure.
@@ -143,6 +156,34 @@ def plain_matte(image):
     if (alpha > 128).mean() < 0.01:
         return None  # found nothing: let the real matting model look
     return Image.fromarray(np.dstack([rgb, alpha]), "RGBA")
+
+
+def see_through(rgb, grey, labels, background):
+    """The gaps in an object that show the backdrop: between a car's wing
+    and its body, inside a handle, under an arched arm. They are light, but
+    enclosed, so not reached from the edge - and filled in, they come back
+    from the shape model as webbing and slabs where there should be air.
+    Told from a highlight on the clay by colour: the backdrop's own, within
+    a few levels, where matte clay tops out far below it."""
+    import numpy as np
+
+    # The backdrop as drawn: split_views pads each view out with pure white,
+    # which is not the colour the gaps show when the drawing is cream.
+    sample = rgb[background & (grey < 250)]
+    if len(sample) < 500:
+        sample = rgb[background]
+    if len(sample) == 0:
+        return np.zeros_like(background)
+    backdrop = np.median(sample, axis=0)
+    enclosed = np.setdiff1d(np.unique(labels[(labels > 0) & ~background]), [0])
+    holes = np.zeros_like(background)
+    for label in enclosed:
+        region = labels == label
+        if region.sum() < 64:
+            continue  # a speck of light is not a gap worth the model's attention
+        if np.abs(rgb[region].mean(axis=0) - backdrop).max() <= 12:
+            holes |= region
+    return holes
 
 
 if __name__ == "__main__":

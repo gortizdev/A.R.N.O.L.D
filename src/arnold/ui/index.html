@@ -686,7 +686,7 @@ textarea.config-text { width: 100%; min-height: 62vh; font: .78rem/1.5 var(--mon
   box-shadow: 0 2px 18px var(--mode); animation: sweep 2.2s cubic-bezier(.45,.05,.55,.95) infinite; }
 @keyframes sweep { to { top: 100%; } }
 .scan.stopped::after { display: none; }
-.scan[data-views="front-back"], .scan[data-views="front-side-back"] { width: min(76%, 38rem); aspect-ratio: 3 / 2; }
+.scan[data-views="front-back"], .scan[data-views="front-side-back"], .scan[data-views="front-back-sides"] { width: min(76%, 38rem); aspect-ratio: 3 / 2; }
 .scan.stopped { border-color: color-mix(in srgb, var(--rose) 45%, var(--line)); }
 .scan-empty { display: grid; place-items: center; width: 100%; height: 100%; }
 .scan-empty svg { width: 46%; fill: none; stroke: color-mix(in srgb, var(--mode) 70%, transparent); stroke-width: 1.2; stroke-dasharray: 4 5;
@@ -736,11 +736,13 @@ textarea.config-text { width: 100%; min-height: 62vh; font: .78rem/1.5 var(--mon
 .step[data-state="bad"] { border-color: color-mix(in srgb, var(--rose) 55%, var(--hair)); }
 .step[data-state="bad"] b, .step[data-state="bad"]::before { color: var(--rose); }
 .step[data-state="skip"] { opacity: .55; }
+.step[data-state="warn"] { border-color: color-mix(in srgb, var(--amber) 55%, var(--hair)); }
+.step[data-state="warn"] b, .step[data-state="warn"]::before { color: var(--amber); }
 .bench-actions { padding: .75rem 1.1rem 1rem; }
 .bench-actions a.btn { text-decoration: none; }
 
 /* Adjusting a part: one change, a new version. */
-.adjust { padding: 0 1.1rem 1rem; display: grid; gap: .4rem; }
+.adjust { padding: 0 1.1rem 1rem; display: grid; gap: .4rem; grid-template-columns: minmax(0, 1fr); }
 .adjust[hidden] { display: none; }
 .adjust-row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap;
   padding: .45rem .45rem .45rem .7rem; border: 1px solid color-mix(in srgb, var(--mode) 28%, var(--hair)); border-radius: var(--r-ctl);
@@ -761,13 +763,15 @@ textarea.config-text { width: 100%; min-height: 62vh; font: .78rem/1.5 var(--mon
 .ref-pair figcaption { font: 600 .62rem/1 var(--display); letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
 .ref-pair figure:last-child figcaption { color: var(--mode); }
 .ref-pair .ref-pic { aspect-ratio: 1; }
-.ref-pair[data-views="front-back"], .ref-pair[data-views="front-side-back"] { grid-template-columns: 1fr; }
-.ref-pair[data-views="front-back"] .ref-pic, .ref-pair[data-views="front-side-back"] .ref-pic { aspect-ratio: 3 / 2; }
+.ref-pair[data-views="front-back"], .ref-pair[data-views="front-side-back"], .ref-pair[data-views="front-back-sides"] { grid-template-columns: 1fr; }
+.ref-pair[data-views="front-back"] .ref-pic, .ref-pair[data-views="front-side-back"] .ref-pic,
+.ref-pair[data-views="front-back-sides"] .ref-pic { aspect-ratio: 3 / 2; }
 .ref-code .add { display: block; margin: 0 -.8rem; padding: 0 .8rem; color: var(--ink);
   background: color-mix(in srgb, var(--mode) 14%, transparent); box-shadow: inset 2px 0 0 var(--mode); }
 
 /* The sculpt form. */
-.sculpt { display: grid; gap: .6rem; }
+/* minmax(0, ...) so a long picture name ellipsizes instead of widening the card. */
+.sculpt { display: grid; gap: .6rem; grid-template-columns: minmax(0, 1fr); }
 .sculpt textarea { resize: vertical; min-height: 4.6rem; line-height: 1.45; }
 .pick { display: flex; gap: .6rem; align-items: center; padding: .45rem; border: 1px dashed var(--line); border-radius: var(--r-ctl); }
 .pick[hidden] { display: none; }
@@ -792,8 +796,15 @@ textarea.config-text { width: 100%; min-height: 62vh; font: .78rem/1.5 var(--mon
 .ask-none { margin: 0; font-size: .82rem; color: var(--faint); }
 
 /* How it was made: the picture, the words, the numbers. */
+.ref-pic.ref-emblem { aspect-ratio: 2 / 1; padding: .6rem; box-sizing: border-box; }
 .ref-pic { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: contain; border-radius: 10px; border: 1px solid var(--line); background: #fff; }
 .ref-quote { margin: .7rem 0 .2rem; padding-left: .8rem; border-left: 2px solid var(--mode); font-size: .92rem; color: var(--ink); }
+.ref-check { list-style: none; margin: .6rem 0 0; padding: 0; display: grid; gap: .3rem; font-size: .82rem; color: var(--dim); }
+.ref-check li { padding-left: 1rem; position: relative; }
+.ref-check li::before { content: "·"; position: absolute; left: .3rem; }
+.ref-check li[data-tone="bad"] { color: var(--rose); }
+.ref-check li[data-tone="bad"]::before { content: "!"; font-weight: 700; }
+.ref-check-ok { margin: .6rem 0 0; font-size: .82rem; color: var(--dim); }
 .ref-facts { list-style: none; margin: .6rem 0 0; padding: 0; display: grid; grid-template-columns: auto 1fr; gap: .3rem .9rem; font-size: .8rem; }
 .ref-facts dt { color: var(--faint); }
 .ref-facts dd { margin: 0; color: var(--ink); font-family: var(--mono); font-size: .76rem; font-variant-numeric: tabular-nums; }
@@ -1014,8 +1025,15 @@ textarea.config-text { width: 100%; min-height: 62vh; font: .78rem/1.5 var(--mon
             <span class="adjust-tag">Adjust</span>
             <input class="field" id="adjust-change" maxlength="300" autocomplete="off" aria-label="What to change">
             <label class="inline" id="adjust-height-wrap">Height <input class="field" type="number" id="adjust-height" min="5" max="256" step="1"> mm</label>
+            <button class="btn btn-quiet" type="button" id="adjust-pick-btn" hidden>Emblem&hellip;</button>
             <button class="btn btn-primary" type="submit" id="adjust-go">Adjust</button>
           </div>
+          <div class="pick" id="adjust-pick" hidden>
+            <img id="adjust-pick-img" alt="">
+            <span id="adjust-pick-name"></span>
+            <button class="btn btn-quiet" type="button" id="adjust-pick-clear">Remove</button>
+          </div>
+          <input type="file" id="adjust-file" accept=".png,.jpg,.jpeg,.webp" hidden>
           <p class="hint" id="adjust-hint"></p>
         </form>
       </section>
@@ -1047,7 +1065,7 @@ textarea.config-text { width: 100%; min-height: 62vh; font: .78rem/1.5 var(--mon
               <button class="btn btn-quiet" type="button" id="sculpt-pick-btn">Use a picture&hellip;</button>
               <button class="btn btn-primary row-end" type="submit" id="sculpt-go">Sculpt</button>
             </div>
-            <p class="hint">A short request gets a few questions first - style, pose, the details that matter - so it comes out as you pictured it. OpenAI draws it as a clay model from the front, the side and behind, Hunyuan3D-2mv turns the three views into a mesh, and it is cleaned, stood up and scaled to print. Parts with real measurements come from asking out loud: "make me a cable clip for a 6&nbsp;mm cable".</p>
+            <p class="hint">A short request gets a few questions first - style, pose, the details that matter - so it comes out as you pictured it. OpenAI draws it as a clay model from the front, the side and behind, Hunyuan3D-2mv turns the three views into a mesh, and it is cleaned, stood up and scaled to print. Anything that has to work - a clip, a holder, a box with a lid - is designed in OpenSCAD instead, with any picture as the look to keep.</p>
           </form>
         </section>
 
@@ -1288,6 +1306,14 @@ function hhmm(ts) {
 function dayName(ts) {
   return new Date(ts * 1000).toLocaleDateString([], { weekday: "short" });
 }
+// A four-view sheet's two side views: which were used, seen from which side.
+function sidesSaid(sides) {
+  const [a, b] = Array.isArray(sides) ? sides : [];
+  if (a && b && a !== b) return "sides seen from the " + a + " and the " + b;
+  if (a || b) return "one side used, from the " + (a || b) + " - the other " + (a === b ? "repeated it" : "was unclear");
+  return "sides left out - their facing was unclear";
+}
+
 function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -3558,8 +3584,8 @@ class Viewer {
 
 const BENCH = { viewer: null, thumbs: null, models: new Map(), scad: new Map(), loading: "" };
 const WORKSHOP = { parts: [], selected: (hashView === "workshop" && hashSub) || PREFS.get("part", ""), filter: "all", timer: null,
-                   loading: false, known: null, picture: null, ask: null };
-const WORKING = ["queued", "drawing", "editing", "writing", "shaping", "cleaning", "rendering"];
+                   loading: false, known: null, picture: null, adjustPicture: null, ask: null };
+const WORKING = ["queued", "drawing", "editing", "tracing", "writing", "shaping", "cleaning", "choosing", "rendering", "checking"];
 const isWorking = (part) => WORKING.includes(part.state);
 
 function seconds(n) {
@@ -3629,11 +3655,14 @@ const STEPS = {
     ["drawing", "Picture", "drawn by OpenAI"],
     ["shaping", "Shape", "Hunyuan3D-2"],
     ["cleaning", "Clean up", "stood up and scaled"],
+    ["choosing", "Choose", "the best of the shapes"],
+    ["checking", "Check", "measured and reviewed"],
     ["done", "Slicer", "ready to print"],
   ],
   make: [
     ["writing", "Code", "OpenSCAD by the assistant"],
     ["rendering", "Render", "OpenSCAD"],
+    ["checking", "Check", "measured"],
     ["done", "Slicer", "ready to print"],
   ],
   // Versions: what each kind of adjustment goes through.
@@ -3641,11 +3670,36 @@ const STEPS = {
     ["editing", "Edit picture", "only what was asked"],
     ["shaping", "Shape", "Hunyuan3D-2"],
     ["cleaning", "Clean up", "stood up and scaled"],
+    ["choosing", "Choose", "the best of the shapes"],
+    ["checking", "Check", "measured and reviewed"],
+    ["done", "Slicer", "ready to print"],
+  ],
+  // A working part designed from words (and a sculpture's picture, when it
+  // was redesigned from one): OpenSCAD written from scratch.
+  design: [
+    ["tracing", "Emblem", "drawn as a stencil and traced"],
+    ["writing", "Design", "tested mechanisms, by a design model"],
+    ["rendering", "Render", "OpenSCAD"],
+    ["checking", "Check", "measured and reviewed"],
+    ["done", "Slicer", "ready to print"],
+  ],
+  // A designed part's new look: the mechanism is held as it was.
+  restyle: [
+    ["tracing", "Emblem", "drawn as a stencil and traced"],
+    ["writing", "Restyle", "the look only - the mechanism is held"],
+    ["rendering", "Render", "OpenSCAD"],
+    ["checking", "Check", "measured and reviewed"],
     ["done", "Slicer", "ready to print"],
   ],
   code: [
     ["writing", "Edit code", "rewritten by a model"],
     ["rendering", "Render", "OpenSCAD"],
+    ["checking", "Check", "measured and reviewed"],
+    ["done", "Slicer", "ready to print"],
+  ],
+  addons: [
+    ["cleaning", "Add features", "merged into the mesh"],
+    ["checking", "Check", "measured and reviewed"],
     ["done", "Slicer", "ready to print"],
   ],
   resize: [
@@ -3657,15 +3711,21 @@ const SAYING = {
   queued: "Getting started",
   drawing: "Drawing the reference picture",
   editing: "Editing the picture",
-  writing: "Rewriting the OpenSCAD",
+  tracing: "Drawing the emblem and tracing it",
+  choosing: "Comparing the shapes with the picture",
+  writing: "Writing the OpenSCAD",
   shaping: "Turning the picture into a mesh",
   cleaning: "Cleaning it up, standing it on the plate and scaling it",
   rendering: "Rendering the OpenSCAD",
+  checking: "Checking it will work before it goes to the slicer",
 };
 
 function renderSteps(part) {
-  const steps = STEPS[part.mode] || STEPS[part.kind] || STEPS.sculpt;
   const stages = part.stages || {};
+  // The emblem step only shows for a part that has one.
+  const steps = (STEPS[part.mode] || STEPS[part.kind] || STEPS.sculpt)
+    .filter(([key]) => key !== "tracing" || part.emblem || stages.tracing)
+    .filter(([key]) => key !== "choosing" || part.candidates > 1 || stages.choosing);
   const now = Date.now() / 1000;
   const order = steps.map((s) => s[0]);
   let at = order.indexOf(part.state === "queued" ? order[0] : part.state);
@@ -3686,9 +3746,21 @@ function renderSteps(part) {
       state = state === "bad" ? "bad" : "skip";
       what = part.source === "redrawn" ? "reused from before" : "your picture";
     }
-    if (key === "writing" && part.mode !== "code") { state = part.state === "failed" ? state : "done"; what = "by the assistant"; }
+    if (key === "choosing" && part.candidates > 1)
+      what = part.ranking ? "#" + part.chosen + " of " + part.candidates +
+                            (part.cloud ? (part.cloud === part.chosen ? ", Tencent's" : ", this PC's") : "") +
+                            ", judged against the picture"
+                          : "first of " + part.candidates + " - not compared";
+    if (key === "tracing") what = part.source === "picture" ? "your picture, as a stencil" : "drawn from the words, as a stencil";
+    if (key === "writing" && !["code", "design", "restyle"].includes(part.mode)) { state = part.state === "failed" ? state : "done"; what = "by the assistant"; }
     if (key === "cleaning" && part.faces) what = Number(part.faces).toLocaleString() + " triangles";
-    const sheet = { "front-back": "front & back", "front-side-back": "front, side & back" }[part.views];
+    if (key === "checking" && part.check) {
+      const n = (part.check.problems || []).length;
+      what = n ? n + " to look at" : "all clear" + (part.reviews ? " after " + part.reviews + " fix" + (part.reviews > 1 ? "es" : "") : "");
+      if (n && state === "done") state = "warn";
+    }
+    const sheet = { "front-back": "front & back", "front-side-back": "front, side & back",
+                    "front-back-sides": "front, back & both sides" }[part.views];
     if (key === "drawing" && sheet && (!part.source || part.source === "drawn")) what = sheet + ", by OpenAI";
     if (key === "editing" && sheet) what = "every view, only what was asked";
     if (key === "shaping" && part.shaper) what = part.shaper === "local" ? "Hunyuan3D-2mv on this PC" : "Hunyuan3D on Hugging Face";
@@ -3813,6 +3885,7 @@ function renderActions(part) {
     button("Open in slicer", "btn-primary", () => partCommand("printer.open", { name: part.name }));
     box.append(el("a", { class: "btn btn-quiet", href: partUrl(part.name, "stl"),
                          download: part.title.replace(/[^\w -]+/g, "").trim() + ".stl", text: "Download STL" }));
+    button("Check it", "btn-quiet", async () => { await partCommand("printer.check", { name: part.name }); refreshWorkshop(); });
     if (part.kind === "sculpt" && part.picture) {
       button("Another take", "btn-quiet", () => sculptAgain(part));
     }
@@ -3844,14 +3917,18 @@ function renderAdjust(part) {
   const drawn = sculpted && !!part.picture;
   $("adjust-change").value = "";
   $("adjust-change").disabled = sculpted && !drawn;
-  $("adjust-change").placeholder = !sculpted ? "walls 2 mm thicker, add a 5 mm hole for a keyring…"
+  $("adjust-pick-btn").hidden = sculpted;
+  clearAdjustPicture();
+  $("adjust-change").placeholder = !sculpted ? "walls 2 mm thicker, a wolf emblem on the flap, make it look like a treasure chest…"
     : drawn ? "give it a party hat, make the ears pointier…" : "only its height can change - it has no picture";
   $("adjust-height-wrap").hidden = !sculpted;
   $("adjust-height").value = part.size_mm ? Math.round(part.size_mm[2]) : "";
   const hint = $("adjust-hint");
   delete hint.dataset.tone;
   hint.textContent = !sculpted
-    ? "Rewrites the OpenSCAD and renders it again, in a few seconds. The original stays in the collection."
+    ? "A fit or a size rewrites the OpenSCAD in seconds. A new look - a style, an emblem, or a picture " +
+      "added with Emblem - is a restyle by the design model, a minute or two, that keeps the hinge, fits " +
+      "and loops exactly as they are. The original stays in the collection."
     : "Edits the picture and shapes it again, about a minute - small changes keep the rest. " +
       "A new height on its own just rescales it. The original stays in the collection.";
 }
@@ -3869,15 +3946,21 @@ $("adjust-form").addEventListener("submit", async (event) => {
     const wanted = Number($("adjust-height").value);
     if (wanted && (!now || Math.abs(wanted - now) >= 0.5)) args.height_mm = wanted;
   }
-  if (!args.change && !args.height_mm) {
+  const picture = part.kind === "make" ? WORKSHOP.adjustPicture : null;
+  if (!args.change && !args.height_mm && !picture) {
     hint.dataset.tone = "bad";
-    hint.textContent = part.kind === "make" ? "Say what to change." : "Say what to change, or set a new height.";
+    hint.textContent = part.kind === "make" ? "Say what to change, or add an emblem picture." : "Say what to change, or set a new height.";
     $("adjust-change").focus();
     return;
   }
   const go = $("adjust-go");
   go.disabled = true;
   try {
+    if (picture) {
+      delete hint.dataset.tone;
+      hint.textContent = "Sending the picture…";
+      args.image = await uploadPicture(picture);
+    }
     const reply = await api("/api/exec", { cmd: "printer.adjust", args });
     if (!reply.ok) {
       hint.dataset.tone = "bad";
@@ -3886,10 +3969,42 @@ $("adjust-form").addEventListener("submit", async (event) => {
       return;
     }
     if (reply.result && reply.result.name) WORKSHOP.selected = reply.result.name;
+    clearAdjustPicture();
     refreshWorkshop();
+  } catch (err) {
+    hint.dataset.tone = "bad";
+    hint.textContent = err.message;
   } finally {
     go.disabled = false;
   }
+});
+
+// A designed part's emblem picture: traced into a stencil and put on it.
+function clearAdjustPicture() {
+  WORKSHOP.adjustPicture = null;
+  const img = $("adjust-pick-img");
+  if (img.src.startsWith("blob:")) URL.revokeObjectURL(img.src);
+  img.removeAttribute("src");
+  $("adjust-pick").hidden = true;
+  $("adjust-file").value = "";
+}
+
+$("adjust-pick-btn").addEventListener("click", () => $("adjust-file").click());
+$("adjust-pick-clear").addEventListener("click", clearAdjustPicture);
+$("adjust-file").addEventListener("change", (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  const hint = $("adjust-hint");
+  if (!/\.(png|jpe?g|webp)$/i.test(file.name)) {
+    hint.dataset.tone = "bad";
+    hint.textContent = "That needs to be a PNG, JPEG or WebP picture.";
+    return;
+  }
+  clearAdjustPicture();
+  WORKSHOP.adjustPicture = file;
+  $("adjust-pick-img").src = URL.createObjectURL(file);
+  $("adjust-pick-name").textContent = file.name;
+  $("adjust-pick").hidden = false;
 });
 
 async function partCommand(cmd, args) {
@@ -3943,12 +4058,21 @@ async function renderRef(part) {
     ["Asked for", part.height_mm ? part.height_mm + " mm tall" : ""],
     ["Triangles", part.faces ? Number(part.faces).toLocaleString() : ""],
     ["Solid", part.watertight === undefined ? "" : part.watertight ? "yes, watertight" : "no - let the slicer repair it"],
-    ["Views", part.kind === "sculpt" ? ({ "front-back": "front and back", "front-side-back": "front, side and back" }[part.views] || "one") +
-      (part.views === "front-side-back" ? (part.side ? " (side seen from the " + part.side + ")" : " (side left out - its facing was unclear)") : "") : ""],
+    ["Views", part.kind === "sculpt" ? ({ "front-back": "front and back", "front-side-back": "front, side and back",
+                                          "front-back-sides": "front, back and both sides" }[part.views] || "one") +
+      (part.views === "front-side-back" ? (part.side ? " (side seen from the " + part.side + ")" : " (side left out - its facing was unclear)") : "") +
+      (part.views === "front-back-sides" ? " (" + sidesSaid(part.side) + ")" : "") : ""],
     ["Shaped", part.shaper ? (part.shaper === "local" ? "on this PC's GPU" : "on Hugging Face") : ""],
+    ["Features", (part.added || []).join(", ") || (part.addons_error ? "not added - " + part.addons_error : "")],
     ["Took", part.finished && part.created && part.state === "done" ? seconds(part.finished - part.created) : ""],
   ].filter(([, v]) => v);
-  const dl = '<dl class="ref-facts">' + facts.map(([k, v]) => "<dt>" + k + "</dt><dd>" + escapeHtml(v) + "</dd>").join("") + "</dl>";
+  const found = part.check || null;
+  const findings = found && ((found.problems || []).length || (found.notes || []).length)
+    ? '<ul class="ref-check">' +
+      (found.problems || []).map((t) => '<li data-tone="bad">' + escapeHtml(t) + "</li>").join("") +
+      (found.notes || []).map((t) => "<li>" + escapeHtml(t) + "</li>").join("") + "</ul>"
+    : found ? '<p class="ref-check-ok">Checked: nothing wrong found.</p>' : "";
+  const dl = findings + '<dl class="ref-facts">' + facts.map(([k, v]) => "<dt>" + k + "</dt><dd>" + escapeHtml(v) + "</dd>").join("") + "</dl>";
   $("ref-note").textContent = part.parent ? "version " + part.version
     : part.kind === "make" ? "OpenSCAD" : part.source === "drawn" ? "drawn, then shaped" : "from a picture";
   const parent = part.parent ? WORKSHOP.parts.find((p) => p.name === part.parent) : null;
@@ -3961,7 +4085,13 @@ async function renderRef(part) {
     : "";
   if (part.kind === "make") {
     const key = part.name;
-    box.innerHTML = lineage + '<pre class="ref-code" id="ref-code">Loading the code…</pre>' + dl;
+    // A design made from a sculpture keeps the picture it was designed to look like.
+    const marked = part.files.includes("svg");
+    box.innerHTML = lineage + (part.picture ? '<img class="ref-pic" id="ref-concept" alt="The concept it was designed from">' : "") +
+      (marked ? '<img class="ref-pic ref-emblem" id="ref-emblem" alt="The emblem on it, traced from a stencil">' : "") +
+      '<pre class="ref-code" id="ref-code">Loading the code…</pre>' + dl;
+    if (part.picture) $("ref-concept").src = partUrl(part.name, part.picture);
+    if (marked) $("ref-emblem").src = partUrl(part.name, "svg");
     const code = await scadOf(key);
     const before = parent && part.mode === "code" ? await scadOf(parent.name) : null;
     if (WORKSHOP.selected !== key || !$("ref-code")) return;
@@ -4170,6 +4300,16 @@ function pickPicture(file) {
   sculptNote("");
 }
 
+// A picture chosen in the browser, saved beside the parts: the path to pass as `image`.
+async function uploadPicture(file) {
+  const headers = { "X-CA-UI": "1", "X-File-Name": file.name, "Content-Type": "application/octet-stream" };
+  if (BOOT.token) headers["X-CA-Token"] = BOOT.token;
+  const response = await fetch("/api/prints/upload", { method: "POST", headers, body: file, cache: "no-store" });
+  const saved = await response.json().catch(() => ({ ok: false, error: "bad reply" }));
+  if (!saved.ok) throw new Error(saved.error || "The picture didn't upload.");
+  return saved.path;
+}
+
 function clearPicture() {
   WORKSHOP.picture = null;
   $("sculpt-pick").hidden = true;
@@ -4336,12 +4476,7 @@ sculptForm.addEventListener("submit", async (event) => {
     if (file) {
       // A picture already says what it looks like: nothing to ask.
       sculptNote("Sending the picture…");
-      const headers = { "X-CA-UI": "1", "X-File-Name": file.name, "Content-Type": "application/octet-stream" };
-      if (BOOT.token) headers["X-CA-Token"] = BOOT.token;
-      const response = await fetch("/api/prints/upload", { method: "POST", headers, body: file, cache: "no-store" });
-      const saved = await response.json().catch(() => ({ ok: false, error: "bad reply" }));
-      if (!saved.ok) { sculptNote(saved.error, true); return; }
-      args.image = saved.path;
+      args.image = await uploadPicture(file);
       await sculptNow(args);
       return;
     }

@@ -31,6 +31,11 @@ def run(argv, **kwargs: Any) -> subprocess.CompletedProcess:
     """
     kwargs.setdefault("capture_output", True)
     kwargs.setdefault("text", True)
+    # A byte the code page has no character for - OpenSCAD and the 3D
+    # generator's libraries print UTF-8 - is replaced, not raised: the output
+    # is read for a line or two, and a crash over one symbol loses all of it.
+    if kwargs.get("text") and "encoding" not in kwargs:
+        kwargs.setdefault("errors", "replace")
     kwargs["creationflags"] = kwargs.get("creationflags", 0) | NO_WINDOW
     return subprocess.run(argv, **kwargs)
 

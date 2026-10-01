@@ -66,7 +66,27 @@ def register_all(registry: Registry) -> None:
             "image": "or a path to a picture of it on this PC",
             "height_mm": "how tall, default printer.sculpt_height_mm",
             "again": "a part's name: sculpt again from its picture",
-            "views": "with a picture: front (default), front-back or front-side-back if it is a turnaround sheet",
+            "views": "with a picture: front (default), or front-back, front-side-back or front-back-sides "
+                     "(a 2x2 grid: front, back, then both sides) if it is a turnaround sheet",
+            "organic": "true to sculpt even a request that sounds like a working part",
+            "addons": "working features merged into the mesh: plinth, magnet (e.g. magnet 8x3), "
+                      "keyring, hollow, hollow open top - as words or JSON",
+            "open": "false to make it without opening the slicer",
+        },
+        needs_desktop=True,
+    )
+    registry.register(
+        "printer.design", _design,
+        "Design a WORKING part from a description - a box, pouch, case, holder, clip, "
+        "anything with a cavity, a lid, a hinge or a fit - as OpenSCAD written by a design "
+        "model, rendered and opened in Elegoo Slicer. Takes a minute or two.",
+        {
+            "title": "what the part is",
+            "prompt": "what it is and what it must do, with any sizes",
+            "image": "optionally a concept picture on this PC to match the look of; it is "
+                     "also traced into an emblem on the part",
+            "emblem": "false to skip the emblem a picture (or words like 'a wolf emblem') "
+                      "would put on it, true to always make one",
             "open": "false to make it without opening the slicer",
         },
         needs_desktop=True,
@@ -84,13 +104,28 @@ def register_all(registry: Registry) -> None:
     registry.register(
         "printer.adjust", _adjust,
         "Make a new version of a part with one change - a sculpture's picture is edited and "
-        "shaped again, a designed part's OpenSCAD is rewritten. The original is kept.",
+        "shaped again, a designed part's OpenSCAD is rewritten. A new look for a designed part "
+        "(a style, a theme, an emblem, a picture on it) is a restyle that keeps its mechanism "
+        "exactly. A sculpture asked for something that has to work (hollow, a hinge, a lid, a "
+        "fit, a loop size) is redesigned as OpenSCAD instead. The original is kept.",
         {
             "name": "the part's name or title, or omit for the newest",
             "change": "what to change, in plain words",
+            "image": "a designed part: a picture on this PC to trace into an emblem on it",
+            "emblem": "a designed part: true to put an emblem on it drawn from the change",
+            "design": "true to turn a sculpture into a designed OpenSCAD part, false to keep sculpting",
+            "addons": "working features merged into the mesh: plinth, magnet (e.g. magnet 8x3), "
+                      "keyring, hollow, hollow open top - as words or JSON",
             "height_mm": "a new height (a sculpture only; alone, it just resizes)",
             "open": "false to make it without opening the slicer",
         },
+        needs_desktop=True,
+    )
+    registry.register(
+        "printer.check", _check_part,
+        "Check a part before printing: pieces, loose bits, thin walls, whether it is hollow, "
+        "balance and overhangs are measured, then renders are reviewed against what was asked.",
+        {"name": "the part's name or title, or omit for the newest"},
         needs_desktop=True,
     )
     registry.register(
@@ -236,6 +271,7 @@ def _source(args: dict) -> str:
 
 def render(openscad: Path, scad: Path, stl: Path, timeout: int) -> None:
     """scad -> binary STL, or a CommandError carrying what OpenSCAD said."""
+    _with_library(scad)
     try:
         done = process.run(
             [str(openscad), "-o", str(stl), "--export-format", "binstl", str(scad)],
@@ -252,6 +288,19 @@ def render(openscad: Path, scad: Path, stl: Path, timeout: int) -> None:
     if "top level object is empty" in output.lower():
         raise CommandError("The OpenSCAD ran but made no solid - nothing is left once it has run.")
     raise CommandError("OpenSCAD couldn't render that: " + _errors(output))
+
+
+def _with_library(scad: Path) -> None:
+    """Put the parts library beside a file that includes it. Copied fresh each
+    time, so a fixed mechanism reaches the next render, and beside the file
+    rather than on a search path, so the .scad also opens in OpenSCAD itself."""
+    from ..design import LIBRARY
+
+    try:
+        if LIBRARY.name in scad.read_text(encoding="utf-8", errors="replace"):
+            shutil.copyfile(LIBRARY, scad.parent / LIBRARY.name)
+    except OSError as exc:
+        log.warning("could not put %s beside %s: %s", LIBRARY.name, scad.name, exc)
 
 
 def _errors(output: str) -> str:
@@ -365,19 +414,28 @@ def _make(ctx: CommandContext, args: dict) -> CommandResult:
             path.unlink(missing_ok=True)
         raise
     # Only written once it rendered, for the same reason.
+    from ..design import template_used
+
     Catalog(directory).write(
         stem, title=title, kind="make", state="done", created=started, finished=time.time(),
         stages={"rendering": [started, time.time()]},
         size_mm=[round(v, 2) for v in size], faces=_facet_count(stl),
+        template=template_used(code) or None,
     )
     _slicing(ctx, stem)
     _prune(directory)
     log.info("made part %s (%s)", stem, size_speech(size))
+    # Measured only - no review: whoever wrote this code is in a conversation
+    # and can fix what the numbers say.
+    report = _check(ctx, stem, "make", title, None, review=False)
+    warning = report.spoken() if report is not None else ""
 
     result = {"name": stem, "stl": str(stl), "scad": str(scad),
               "size_mm": [round(v, 2) for v in size], "opened": False}
+    if report is not None:
+        result["check"] = {"problems": report.problems, "notes": report.notes}
     if not arg_bool(args, "open", True):
-        return CommandResult(speech=f"I've made {title}: {size_speech(size)}.", result=result)
+        return CommandResult(speech=f"I've made {title}: {size_speech(size)}.{warning}", result=result)
 
     slicer = find_slicer(cfg.slicer)
     if slicer is None:
@@ -388,7 +446,61 @@ def _make(ctx: CommandContext, args: dict) -> CommandResult:
         )
     _open_in_slicer(slicer, stl)
     result["opened"] = True
-    return CommandResult(speech=f"{title} is in the slicer: {size_speech(size)}.", result=result)
+    return CommandResult(speech=f"{title} is in the slicer: {size_speech(size)}.{warning}", result=result)
+
+
+# -- checking ----------------------------------------------------------------------
+
+
+def _check(ctx: CommandContext, stem: str, kind: str, request: str, picture: Path | None,
+           *, review: bool = True) -> Any:
+    """Measure the part, and review renders of it when asked and configured.
+    The report is kept with the part; None when checking is switched off."""
+    from .. import check
+
+    cfg = ctx.config.printer
+    if not cfg.check_enabled:
+        return None
+    directory = prints_dir(ctx)
+    catalog = Catalog(directory)
+    stl = directory / f"{stem}.stl"
+    if catalog.read(stem).get("state") in WORKING:
+        catalog.stage(stem, "checking")
+    looking = review and cfg.check_review and bool(cfg.check_model)
+    openscad = find_openscad(cfg.openscad) if looking else None
+    work = directory / f".check-{stem}"
+    scad = directory / f"{stem}.scad"
+    try:
+        source = scad.read_text(encoding="utf-8") if scad.is_file() else ""
+    except OSError:
+        source = ""
+    try:
+        report = check.check(stl, kind=kind, request=request, openscad=openscad,
+                             work_dir=work if openscad else None,
+                             model=cfg.check_model if openscad else "", picture=picture, source=source)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    catalog.write(stem, check=report.to_dict())
+    if report.problems:
+        log.info("checking %s found: %s", stem, "; ".join(report.problems))
+    return report
+
+
+def _check_part(ctx: CommandContext, args: dict) -> CommandResult:
+    part = _find_part(ctx, str(args.get("name") or ""))
+    if part["state"] != "done" or "stl" not in part["files"]:
+        raise CommandError(f"{part['title']} isn't finished, so there's nothing to check yet.")
+    picture = prints_dir(ctx) / f"{part['name']}.{part['picture']}" if part.get("picture") else None
+    request = " ".join(filter(None, [part.get("prompt") or part["title"], part.get("change") or ""]))
+    kind = "sculpt" if part["kind"] == "sculpt" else "make"
+    if not ctx.config.printer.check_enabled:
+        raise CommandError("Checking parts is switched off. Set printer.check_enabled in my config.")
+    report = _check(ctx, part["name"], kind, request, picture)
+    if report.ok:
+        speech = f"{part['title']} looks right to me." + (f" Worth knowing: {report.notes[0]}." if report.notes else "")
+    else:
+        speech = f"{part['title']}: " + "; ".join(report.problems) + "."
+    return CommandResult(speech=speech, result={"name": part["name"], "check": report.to_dict()})
 
 
 # -- printer.sculpt ----------------------------------------------------------
@@ -423,6 +535,15 @@ def _sculpt(ctx: CommandContext, args: dict) -> CommandResult:
         raise CommandError("Tell me what to sculpt, or give me a picture of it.")
     height = _height_arg(args, cfg)
     shown = arg_bool(args, "open", True)
+    features = _addons_arg(args, prompt, previous)
+    if not again and not arg_bool(args, "organic", False):
+        from .. import design
+
+        if design.looks_functional(prompt):
+            # A picture wrapped in a skin cannot hinge, hold or fit: see design.py.
+            # A picture that came with the words is the look to keep, not the part.
+            return _design(ctx, {"title": title, "prompt": prompt, "open": shown,
+                                 "image": str(image) if image else ""}, routed=True)
 
     _claim(title)
     # Named and recorded before any work starts, so whoever asked - the
@@ -434,13 +555,14 @@ def _sculpt(ctx: CommandContext, args: dict) -> CommandResult:
     # A picture of the user's own can be a turnaround sheet too, if they say so.
     given = str(args.get("views") or "").strip()
     if image is not None and not again and given:
-        if given not in ("front", "front-back", "front-side-back"):
-            raise CommandError("views should be front, front-back or front-side-back.")
+        if given not in ("front", "front-back", "front-side-back", "front-back-sides"):
+            raise CommandError("views should be front, front-back, front-side-back or front-back-sides.")
         views = given
     catalog(ctx).write(
         stem, title=title, kind="sculpt", mode="sculpt", state="queued", created=time.time(),
         prompt=prompt, height_mm=height, views=views, side=previous.get("side"),
         source=("redrawn" if again else "picture") if image else "drawn",
+        addons=features.to_dict() or None,
     )
     if previous.get("state") == "failed":
         # Its picture is copied into the new part as the first step, so the
@@ -452,6 +574,157 @@ def _sculpt(ctx: CommandContext, args: dict) -> CommandResult:
         f"I'm sculpting {title}. It takes about a minute; I'll say when it's in the slicer.",
         {"height_mm": height},
     )
+
+
+# -- printer.design ------------------------------------------------------------
+
+
+def _design(ctx: CommandContext, args: dict, *, routed: bool = False) -> CommandResult:
+    """A working part from words: OpenSCAD written by a design model."""
+    cfg = ctx.config.printer
+    title = str(args.get("title") or "").strip() or "The part"
+    prompt = str(args.get("prompt") or "").strip()
+    if not prompt:
+        raise CommandError("Tell me what the part is and what it has to do.")
+    image = _image_arg(args)
+    shown = arg_bool(args, "open", True)
+    if find_openscad(cfg.openscad) is None:
+        raise CommandError("I can't find OpenSCAD on this PC, so I can't design parts. "
+                           "Install it, or set printer.openscad in my config.")
+    from .. import emblem
+
+    # A picture that comes with a working part is the look it should carry,
+    # and the part's surfaces can only carry it as an emblem.
+    marked = arg_bool(args, "emblem", image is not None or emblem.wanted(prompt))
+    _claim(title)
+    stem = _new_stem(title, prints_dir(ctx))
+    catalog(ctx).write(
+        stem, title=title, kind="make", mode="design", state="queued", created=time.time(),
+        prompt=prompt, source="picture" if image else "described", emblem=marked or None,
+    )
+    why = ("It has to work rather than just look the part, so I'm designing it "
+           "properly instead of sculpting it. " if routed else "")
+    return _start(
+        ctx, stem, title,
+        lambda: _design_now(ctx, stem, title, prompt, "", None, image, shown,
+                            emblem_from=image, marked=marked),
+        f"{why}Designing {title}. It takes a minute or two; I'll say when it's in the slicer.",
+        {"mode": "design"},
+    )
+
+
+def _design_now(ctx: CommandContext, stem: str, label: str, description: str, change: str,
+                size_mm: list[float] | None, picture: Path | None, shown: bool, *,
+                base: str = "", emblem_from: Path | None = None, marked: bool = False) -> CommandResult:
+    """Write, render, and on an OpenSCAD error write again - three goes.
+
+    With `base`, a working part is restyled rather than designed afresh, and
+    an attempt that changes how it works goes back like a render error.
+    `marked` traces an emblem for it first: from `emblem_from` when there is
+    a picture to redraw, else from the words.
+    """
+    from .. import design
+
+    cfg = ctx.config.printer
+    directory = prints_dir(ctx)
+    catalog = Catalog(directory)
+    scad, stl = directory / f"{stem}.scad", directory / f"{stem}.stl"
+    openscad = find_openscad(cfg.openscad)
+    if openscad is None:
+        raise _fail(catalog, stem, CommandError("I can't find OpenSCAD on this PC."))
+    concept: Path | None = None
+    if picture is not None:
+        # Kept with the part, so the Workshop can show what it was designed from.
+        concept = directory / f"{stem}{picture.suffix.lower()}"
+        try:
+            if picture.resolve() != concept.resolve():
+                shutil.copyfile(picture, concept)
+        except OSError:
+            concept = picture
+    mark = _trace_emblem(ctx, stem, change or description, emblem_from) if marked else None
+    request = description + (f" It must also: {change}" if change else "")
+    error, attempt = "", ""
+    failed_renders, reviews, moved = 0, 0, 0
+    report = None
+    # Three failed renders and it is given up on; a part that renders but
+    # fails its check goes back check_rounds times, then is kept with the
+    # findings as a warning - a flawed part is still something to look at.
+    while True:
+        try:
+            catalog.stage(stem, "writing")
+            attempt = design.write(description, model=cfg.design_model,
+                                   fallback_model=cfg.adjust_code_model, change=change,
+                                   size_mm=size_mm, picture=concept, max_mm=cfg.max_size_mm,
+                                   error=error, previous=attempt, base=base, emblem=mark)
+            # Caught before rendering: a restyle that moved the hinge is not
+            # worth the render, and the model is told exactly what to put back.
+            problem = design.kept_mechanism(base, attempt) if base else ""
+            if not problem:
+                scad.write_text(attempt, encoding="utf-8")
+                catalog.stage(stem, "rendering")
+                size = _render_checked(openscad, scad, stl, cfg, label)
+                catalog.write(stem, template=design.template_used(attempt) or None)
+        except design.DesignError as exc:
+            raise _fail(catalog, stem, exc) from None
+        except CommandError as exc:
+            failed_renders += 1
+            error = f"OpenSCAD could not use that: {exc}"
+            if failed_renders >= 3:
+                for path in (scad, stl):
+                    path.unlink(missing_ok=True)
+                raise _fail(catalog, stem, CommandError(f"The design wouldn't render: {exc}")) from None
+            continue
+        if problem:
+            moved += 1
+            if moved >= 3:
+                raise _fail(catalog, stem, CommandError(
+                    "The restyle kept changing how the part works, so I stopped. "
+                    "Ask for the look and the fit as separate changes."))
+            error = problem
+            continue
+        report = _check(ctx, stem, "make", request, concept)
+        if report is None or report.ok or reviews >= max(0, int(cfg.check_rounds)):
+            break
+        reviews += 1
+        catalog.write(stem, reviews=reviews)
+        error = ("It rendered, but checking the part found problems:\n" + report.feedback())
+    return _finish(ctx, stem, label, size, _facet_count(stl), None, shown, {"scad": str(scad)},
+                   report=report)
+
+
+def _trace_emblem(ctx: CommandContext, stem: str, subject: str,
+                  picture: Path | None) -> tuple[str, float]:
+    """The part's emblem, drawn as a stencil and traced to `stem`.svg beside
+    it: the file name its OpenSCAD imports, and its height over its width."""
+    from .. import emblem
+
+    directory = prints_dir(ctx)
+    catalog = Catalog(directory)
+    stencil = directory / f".emblem-{stem}.png"
+    try:
+        catalog.stage(stem, "tracing")
+        emblem.draw(subject, stencil, model=ctx.config.printer.adjust_image_model, picture=picture)
+        aspect = emblem.trace(stencil, directory / f"{stem}.svg")
+    except (emblem.EmblemError, OSError) as exc:
+        raise _fail(catalog, stem, exc) from None
+    finally:
+        stencil.unlink(missing_ok=True)
+    return f"{stem}.svg", aspect
+
+
+def _carry_emblem(ctx: CommandContext, parent: str, stem: str, code: str) -> str:
+    """A version's OpenSCAD imports its own copy of the emblem, so deleting
+    the part it came from never leaves it unable to render."""
+    directory = prints_dir(ctx)
+    old = f"{parent}.svg"
+    if old not in code or not (directory / old).is_file():
+        return code
+    try:
+        shutil.copyfile(directory / old, directory / f"{stem}.svg")
+    except OSError as exc:
+        log.warning("could not carry the emblem of %s: %s", parent, exc)
+        return code
+    return code.replace(old, f"{stem}.svg")
 
 
 def _brief(ctx: CommandContext, args: dict) -> CommandResult:
@@ -511,6 +784,22 @@ def _start(ctx: CommandContext, stem: str, title: str, work: Any, starting: str,
                          result={"state": "running", "name": stem, "title": title, **extra})
 
 
+def _addons_arg(args: dict, prompt: str = "", previous: dict[str, Any] | None = None) -> Any:
+    """The working features for a sculpture: asked for by name, else implied by
+    the words ("a dragon keychain"), else whatever the part had before."""
+    from .. import addons
+
+    raw = args.get("addons")
+    if raw not in (None, ""):
+        try:
+            return addons.parse(raw)
+        except addons.AddonError as exc:
+            raise CommandError(str(exc)) from None
+    if previous and previous.get("addons"):
+        return addons.parse(previous["addons"])
+    return addons.implied(prompt)
+
+
 def _image_arg(args: dict) -> Path | None:
     raw = str(args.get("image") or "").strip().strip('"')
     if not raw:
@@ -557,24 +846,127 @@ def _sculpt_now(ctx: CommandContext, stem: str, title: str, prompt: str, image: 
             replaced = _replacing.pop(stem, "")
             if replaced:
                 catalog.delete(replaced)
+            # Another take from a sheet drawn before this was caught gets mended too.
+            _mend(ctx, picture, views)
             if catalog.read(stem).get("side") is None:
                 _note_side(ctx, catalog, stem, picture, views)
         else:
             catalog.stage(stem, "drawing")
             sculpt.draw(prompt, picture, model=cfg.sculpt_image_model, views=views)
+            if _mend(ctx, picture, views):
+                # Mending did not do it: one fresh drawing. A view cropped even
+                # then is still used - leaving the front out of an F1 car lost
+                # its front wing, which was worse than the crop.
+                sculpt.draw(prompt, picture, model=cfg.sculpt_image_model, views=views)
             _note_side(ctx, catalog, stem, picture, views)
     except (sculpt.SculptError, OSError) as exc:
         raise _fail(catalog, stem, exc) from None
     return _shape_now(ctx, stem, title, picture, height, shown, views)
 
 
-def _note_side(ctx: CommandContext, catalog: Catalog, stem: str, picture: Path, views: str) -> None:
-    """Ask which way a three-view sheet's side view faces, and keep the
-    answer with the part: shaping it again then needs no second opinion."""
+def _cloud_shape(ctx: CommandContext, stem: str, picture: Path, views: str, index: int) -> Any:
+    """Hunyuan 3D 3.x on Tencent Cloud making one more candidate, as
+    <stem>.<index>.glb, on a thread while this PC makes its own - or None
+    when it is not asked for or has no keys. A cloud failure is logged, not
+    raised: this PC's shapes are still a part."""
+    from .. import sculpt, tencent
+
+    cfg = ctx.config.printer
+    if not cfg.sculpt_tencent_extra or not tencent.configured():
+        return None
+    directory = prints_dir(ctx)
+    out = directory / f"{stem}.{index}.glb"
+    side = Catalog(directory).read(stem).get("side")
+
+    def run() -> None:
+        # No record writes from here: the part's record is written by the
+        # thread that owns it, and two writers race on Windows.
+        try:
+            sculpt.shape(picture, out, views=views, side=side, backend="tencent",
+                         tencent_region=cfg.sculpt_tencent_region, tencent_model=cfg.sculpt_tencent_model,
+                         faces=cfg.sculpt_max_faces, timeout=cfg.sculpt_timeout)
+        except sculpt.SculptError as exc:
+            log.warning("no Tencent shape for %s: %s", stem, exc)
+            out.unlink(missing_ok=True)
+
+    thread = threading.Thread(target=run, daemon=True, name="tencent-shape")
+    thread.start()
+    thread.out = out  # type: ignore[attr-defined]
+    return thread
+
+
+def _best_shape(ctx: CommandContext, stem: str, picture: Path, made: list[Path], height: float) -> Any:
+    """Every candidate cleaned into a part, then the one that looks most like
+    the picture kept as the part's own mesh and STL, the rest thrown away."""
+    from .. import check, sculpt
+
+    cfg = ctx.config.printer
+    directory = prints_dir(ctx)
+    catalog = Catalog(directory)
+    raw, stl = directory / f"{stem}.glb", directory / f"{stem}.stl"
+    work = directory / f".choose-{stem}"
+    work.mkdir(exist_ok=True)
+    try:
+        parts = []
+        for i, glb in enumerate(made):
+            try:
+                parts.append(sculpt.to_part(glb, work / f"{i}.stl", height_mm=height,
+                                            max_size_mm=cfg.max_size_mm, max_faces=cfg.sculpt_max_faces))
+            except sculpt.SculptError as exc:  # one bad candidate is not a failed part
+                log.info("candidate %d of %s: %s", i, stem, exc)
+                parts.append(None)
+        whole = [i for i, p in enumerate(parts) if p is not None]
+        if not whole:
+            raise sculpt.SculptError("None of the shapes came out usable.")
+        order = None
+        openscad = find_openscad(cfg.openscad)
+        if len(whole) > 1 and openscad is not None and cfg.check_enabled:
+            catalog.stage(stem, "choosing")
+            ranked = check.rank(picture, [parts[i].stl for i in whole], openscad=openscad,
+                                work_dir=work, model=cfg.sculpt_check_model)
+            order = [whole[i] for i in ranked] if ranked else None
+        best = order[0] if order else whole[0]
+        shutil.copyfile(parts[best].stl, stl)
+        if made[best] != raw:
+            os.replace(made[best], raw)
+        catalog.write(stem, candidates=len(made), chosen=best + 1,
+                      ranking=[i + 1 for i in order] if order else None)
+        log.info("%s: kept shape %d of %d%s", stem, best + 1, len(made), f" (ranked {order})" if order else "")
+        chosen = parts[best]
+        return sculpt.Part(stl=stl, size=chosen.size, faces=chosen.faces, watertight=chosen.watertight)
+    finally:
+        for glb in made[1:]:
+            glb.unlink(missing_ok=True)
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def _mend(ctx: CommandContext, picture: Path, views: str) -> list[str]:
+    """A sheet whose views run off its edge, mended in place: the shape model
+    builds a view that stops at the frame as an object that stops there. The
+    views still cut off afterwards; a mend that fails is only logged, since a
+    cropped sheet still makes a part."""
     from .. import sculpt
 
-    if views == sculpt.THREE:
-        catalog.write(stem, side=sculpt.side_facing(picture, model=ctx.config.printer.sculpt_check_model))
+    cropped = sculpt.cut_off(picture, views)
+    if not cropped:
+        return []
+    log.info("the %s view of %s runs off the picture; mending it", ", ".join(cropped), picture.name)
+    try:
+        return sculpt.uncrop(picture, views, model=ctx.config.printer.adjust_image_model, cut=cropped)
+    except sculpt.SculptError as exc:
+        log.warning("could not mend %s: %s", picture.name, exc)
+        return cropped
+
+
+def _note_side(ctx: CommandContext, catalog: Catalog, stem: str, picture: Path, views: str) -> None:
+    """Ask which way a sheet's side views face, and keep the answer with the
+    part - a list, one per side view, on a four-view sheet: shaping it again
+    then needs no second opinion."""
+    from .. import sculpt
+
+    if views in (sculpt.THREE, sculpt.FOUR):
+        catalog.write(stem, side=sculpt.side_facing(picture, model=ctx.config.printer.sculpt_check_model,
+                                                    views=views))
 
 
 def local_generator(ctx: CommandContext) -> Any:
@@ -602,30 +994,75 @@ def _shape_now(ctx: CommandContext, stem: str, label: str, picture: Path, height
     catalog = Catalog(directory)
     raw, stl = directory / f"{stem}.glb", directory / f"{stem}.stl"
     local = local_generator(ctx)
+    shaper = sculpt.where(cfg.sculpt_backend, local)
+    # Several shapes when they come cheap - this PC's generator makes them from
+    # one load - and the best kept: the seed decides as much as the settings.
+    count = max(1, int(cfg.sculpt_candidates)) if shaper == "local" else 1
+    # Beside this PC's shapes, one from Hunyuan 3D 3.x on Tencent Cloud when
+    # asked for, made at the same time; the choosing then decides between
+    # them on looks alone. Its failing costs only that candidate.
+    cloud = _cloud_shape(ctx, stem, picture, views, count) if shaper == "local" else None
     try:
-        catalog.write(stem, shaper=sculpt.where(cfg.sculpt_backend, local))
+        catalog.write(stem, shaper=shaper)
         catalog.stage(stem, "shaping")
         sculpt.shape(picture, raw, views=views, side=catalog.read(stem).get("side"),
                      backend=cfg.sculpt_backend,
                      local=local, space=cfg.sculpt_space,
                      mv_space=cfg.sculpt_mv_space,
                      token=cfg.sculpt_hf_token or os.environ.get("HF_TOKEN", ""),
-                     timeout=cfg.sculpt_timeout)
+                     timeout=cfg.sculpt_timeout, candidates=count,
+                     tencent_region=cfg.sculpt_tencent_region, tencent_model=cfg.sculpt_tencent_model,
+                     faces=cfg.sculpt_max_faces)
+        if cloud is not None:
+            cloud.join()
+            if cloud.out.is_file():
+                catalog.write(stem, cloud=count + 1)
         catalog.stage(stem, "cleaning")
-        part = sculpt.to_part(raw, stl, height_mm=height, max_size_mm=cfg.max_size_mm,
-                              max_faces=cfg.sculpt_max_faces)
+        made = sculpt.candidates_of(raw)
+        if len(made) > 1:
+            part = _best_shape(ctx, stem, picture, made, height)
+        else:
+            part = sculpt.to_part(raw, stl, height_mm=height, max_size_mm=cfg.max_size_mm,
+                                  max_faces=cfg.sculpt_max_faces)
     except (sculpt.SculptError, OSError) as exc:
         # The picture stays: it cost something to draw, and the Workshop can
         # try the shape again from it.
-        for path in (raw, stl):
+        for path in (raw, stl, *sculpt.candidates_of(raw)[1:]):
             path.unlink(missing_ok=True)
         raise _fail(catalog, stem, exc) from None
-    return _finish(ctx, stem, label, part.size, part.faces, part.watertight, shown,
-                   {"image": str(picture), "mesh": str(raw)})
+    record = catalog.read(stem)
+    size, faces, watertight = part.size, part.faces, part.watertight
+    note = ""
+    if record.get("addons"):
+        size, faces, watertight, note = _add_features(catalog, stem, stl, record["addons"],
+                                                      (size, faces, watertight))
+    request = " ".join(filter(None, [record.get("prompt") or label, record.get("change") or ""]))
+    report = _check(ctx, stem, "sculpt", request, picture)
+    result = _finish(ctx, stem, label, size, faces, watertight, shown,
+                     {"image": str(picture), "mesh": str(raw)}, report=report)
+    if note:
+        result.speech += note
+    return result
+
+
+def _add_features(catalog: Catalog, stem: str, stl: Path, wanted: dict[str, Any],
+                  fallback: tuple) -> tuple:
+    """Merge the features into the part. One that cannot be added is left
+    off and said, not a failure: the sculpture is still worth having."""
+    from .. import addons
+
+    try:
+        done = addons.apply(stl, addons.parse(wanted))
+    except addons.AddonError as exc:
+        catalog.write(stem, addons_error=str(exc))
+        return (*fallback, f" {exc}")
+    catalog.write(stem, added=done["added"])
+    return done["size"], done["faces"], done["watertight"], ""
 
 
 def _finish(ctx: CommandContext, stem: str, label: str, size: tuple[float, float, float],
-            faces: int, watertight: bool | None, shown: bool, extra: dict[str, Any]) -> CommandResult:
+            faces: int, watertight: bool | None, shown: bool, extra: dict[str, Any],
+            report: Any = None) -> CommandResult:
     cfg = ctx.config.printer
     directory = prints_dir(ctx)
     catalog = Catalog(directory)
@@ -641,6 +1078,9 @@ def _finish(ctx: CommandContext, stem: str, label: str, size: tuple[float, float
               "faces": faces, "watertight": watertight, "opened": False,
               "slicing": slicing.get("summary", "")}
     caveat = "" if watertight is not False else " The mesh has gaps, so let the slicer repair it."
+    if report is not None:
+        result["check"] = {"problems": report.problems, "notes": report.notes}
+        caveat = report.spoken() or caveat
     slicer = find_slicer(cfg.slicer) if shown else None
     if slicer is None:
         where = "" if not shown else " I can't find Elegoo Slicer, so it's in the prints folder."
@@ -674,21 +1114,41 @@ def _adjust(ctx: CommandContext, args: dict) -> CommandResult:
     """A new version of a part with one change made; the original is kept.
 
     A sculpture's picture is edited and shaped again; a designed part's
-    OpenSCAD is rewritten and rendered again; a height alone is only
-    arithmetic and needs neither.
+    OpenSCAD is rewritten and rendered again - or, for a new look, restyled
+    by the design model with its mechanism held as it was; a height alone
+    is only arithmetic and needs neither.
     """
+    from .. import design, emblem
+
     cfg = ctx.config.printer
     part = _find_part(ctx, str(args.get("name") or ""))
     change = str(args.get("change") or "").strip()
     resizing = args.get("height_mm") not in (None, "")
     shown = arg_bool(args, "open", True)
+    image = _image_arg(args)
+    marked = False  # an emblem is traced for the new version
     if part["kind"] == "make":
-        if not change:
+        if not change and image is None:
             raise CommandError(f"Say what to change about {part['title']} - "
                                "a designed part's size lives in its code.")
         if "scad" not in part["files"]:
             raise CommandError(f"I don't have the code for {part['title']} any more.")
-        mode = "code"
+        # A picture, or words asking for one, is an emblem to put on it.
+        marked = arg_bool(args, "emblem", image is not None or emblem.wanted(change))
+        mode = "restyle" if marked or design.looks_change(change) else "code"
+        if mode == "restyle" and find_openscad(cfg.openscad) is None:
+            raise CommandError("I can't find OpenSCAD on this PC, so I can't restyle it.")
+        change = change or "put the picture on it as an emblem"
+    elif part["kind"] == "sculpt" and (args.get("addons") not in (None, "") or
+                                       (change and _feature_change(change).any())):
+        if "stl" not in part["files"]:
+            raise CommandError(f"I don't have the mesh for {part['title']} any more.")
+        mode = "addons"
+    elif change and _wants_design(args, change):
+        if find_openscad(cfg.openscad) is None:
+            raise CommandError("That needs a designed part, and I can't find OpenSCAD on this PC.")
+        mode = "design"
+        marked = arg_bool(args, "emblem", emblem.wanted(change))
     elif change:
         if not cfg.sculpt_enabled:
             raise CommandError("Sculpting is switched off. Set printer.sculpt_enabled in my config.")
@@ -707,13 +1167,26 @@ def _adjust(ctx: CommandContext, args: dict) -> CommandResult:
     label = f"{title}, version {version},"
     _claim(title)
     stem = _new_stem(title, prints_dir(ctx))
+    kind = "make" if mode == "design" else part["kind"]
+    features = None  # what the new version has, for any later reshaping
+    new_features = None  # what this version adds to its parent's mesh
+    if mode == "addons":
+        new_features = _addons_arg(args) if args.get("addons") not in (None, "") else _feature_change(change)
+        from .. import addons as addons_mod
+
+        features = addons_mod.parse({**(part.get("addons") or {}), **new_features.to_dict()})
+    elif kind == "sculpt" and mode == "picture":
+        features = _addons_arg(args, "", part)
     catalog(ctx).write(
-        stem, title=title, kind=part["kind"], mode=mode, state="queued", created=time.time(),
-        prompt=part.get("prompt") or "", height_mm=height if part["kind"] == "sculpt" else None,
-        views=part.get("views") or ("front" if part["kind"] == "sculpt" else None),
+        stem, title=title, kind=kind, mode=mode, state="queued", created=time.time(),
+        prompt=part.get("prompt") or "", height_mm=height if kind == "sculpt" else None,
+        views=part.get("views") if kind == "sculpt" and part.get("views") else ("front" if kind == "sculpt" else None),
         source="edited" if mode == "picture" else part.get("source"),
         parent=part["name"], root=part.get("root") or part["name"], version=version,
-        change=change or f"resized to {height:g} mm tall",
+        change=change or (f"added {', '.join(new_features.names())}" if new_features is not None
+                          else f"resized to {height:g} mm tall"),
+        addons=(features.to_dict() or None) if features is not None else None,
+        emblem=marked or None,
     )
     if mode == "code":
         work = lambda: _adjust_code_now(ctx, stem, label, part, change, shown)  # noqa: E731
@@ -721,10 +1194,74 @@ def _adjust(ctx: CommandContext, args: dict) -> CommandResult:
     elif mode == "picture":
         work = lambda: _adjust_picture_now(ctx, stem, label, part, change, height, shown)  # noqa: E731
         starting = f"Changing {title}: {change}. It takes about a minute; I'll say when it's in the slicer."
+    elif mode == "addons":
+        work = lambda: _addons_now(ctx, stem, label, part, new_features.to_dict(), shown)  # noqa: E731
+        starting = f"Adding {' and '.join(new_features.names())} to {title}."
+    elif mode == "design":
+        picture = prints_dir(ctx) / f"{part['name']}.{part['picture']}" if part.get("picture") else None
+        size = part.get("size_mm")
+        work = lambda: _design_now(ctx, stem, label, part.get("prompt") or title, change,  # noqa: E731
+                                   size, picture, shown, marked=marked)
+        starting = (f"A sculpture can't do that - it's a skin, not a mechanism - so I'm redesigning "
+                    f"{title} as a proper part that keeps the look: {change}. It takes a minute or "
+                    "two; I'll say when it's in the slicer.")
+    elif mode == "restyle":
+        # The concept goes with it: a new picture when one was given, else the old one.
+        concept = image or (prints_dir(ctx) / f"{part['name']}.{part['picture']}" if part.get("picture") else None)
+        work = lambda: _design_now(  # noqa: E731
+            ctx, stem, label, part.get("prompt") or title, change, None, concept, shown,
+            base=_carry_emblem(ctx, part["name"], stem,
+                               (prints_dir(ctx) / f"{part['name']}.scad").read_text(encoding="utf-8")),
+            emblem_from=image, marked=marked)
+        starting = (f"Restyling {title}: {change}. The way it works stays exactly as it is. "
+                    "It takes a minute or two; I'll say when it's in the slicer.")
     else:
         work = lambda: _resize_now(ctx, stem, label, part, height, shown)  # noqa: E731
         starting = f"Resizing {title} to {height:g} millimetres tall."
     return _start(ctx, stem, title, work, starting, {"parent": part["name"], "version": version})
+
+
+def _feature_change(change: str) -> Any:
+    from .. import addons
+
+    return addons.from_change(change)
+
+
+def _addons_now(ctx: CommandContext, stem: str, label: str, part: dict[str, Any], wanted: dict[str, Any],
+                shown: bool) -> CommandResult:
+    """The parent's mesh with features merged in: no picture, no shaping."""
+    directory = prints_dir(ctx)
+    catalog = Catalog(directory)
+    stl = directory / f"{stem}.stl"
+    try:
+        catalog.stage(stem, "cleaning")
+        shutil.copyfile(directory / f"{part['name']}.stl", stl)
+        if part.get("picture"):
+            shutil.copyfile(directory / f"{part['name']}.{part['picture']}", directory / f"{stem}.{part['picture']}")
+    except OSError as exc:
+        raise _fail(catalog, stem, exc) from None
+    from .. import addons
+
+    try:
+        done = addons.apply(stl, addons.parse(wanted))
+    except addons.AddonError as exc:
+        stl.unlink(missing_ok=True)
+        raise _fail(catalog, stem, CommandError(str(exc))) from None
+    catalog.write(stem, added=done["added"])
+    picture = directory / f"{stem}.{part['picture']}" if part.get("picture") else None
+    request = " ".join(filter(None, [part.get("prompt") or part["title"], "with " + ", ".join(done["added"])]))
+    report = _check(ctx, stem, "sculpt", request, picture)
+    return _finish(ctx, stem, label, done["size"], done["faces"], done["watertight"], shown, {}, report=report)
+
+
+def _wants_design(args: dict, change: str) -> bool:
+    """Whether a sculpture's change needs a designed part: said outright, or
+    a change about what it does rather than how it looks."""
+    if args.get("design") not in (None, ""):
+        return arg_bool(args, "design", False)
+    from .. import design
+
+    return design.looks_functional(change)
 
 
 def _adjust_picture_now(ctx: CommandContext, stem: str, label: str, part: dict[str, Any],
@@ -756,7 +1293,8 @@ def _adjust_code_now(ctx: CommandContext, stem: str, label: str, part: dict[str,
     openscad = find_openscad(cfg.openscad)
     if openscad is None:
         raise _fail(catalog, stem, CommandError("I can't find OpenSCAD on this PC."))
-    original = (directory / f"{part['name']}.scad").read_text(encoding="utf-8")
+    original = _carry_emblem(ctx, part["name"], stem,
+                             (directory / f"{part['name']}.scad").read_text(encoding="utf-8"))
     error, attempt = "", ""
     # Three goes: OpenSCAD's complaint about one attempt is what the next
     # one is told, which is usually all it takes.
@@ -768,6 +1306,9 @@ def _adjust_code_now(ctx: CommandContext, stem: str, label: str, part: dict[str,
             scad.write_text(attempt, encoding="utf-8")
             catalog.stage(stem, "rendering")
             size = _render_checked(openscad, scad, stl, cfg, part["title"])
+            from ..design import template_used
+
+            catalog.write(stem, template=template_used(attempt) or None)
             break
         except adjust.AdjustError as exc:
             raise _fail(catalog, stem, exc) from None
@@ -777,7 +1318,11 @@ def _adjust_code_now(ctx: CommandContext, stem: str, label: str, part: dict[str,
         for path in (scad, stl):
             path.unlink(missing_ok=True)
         raise _fail(catalog, stem, CommandError(f"The changed code wouldn't render: {error}")) from None
-    return _finish(ctx, stem, label, size, _facet_count(stl), None, shown, {"scad": str(scad)})
+    request = " ".join(filter(None, [part.get("prompt") or part["title"], change]))
+    picture = directory / f"{part['name']}.{part['picture']}" if part.get("picture") else None
+    report = _check(ctx, stem, "make", request, picture)
+    return _finish(ctx, stem, label, size, _facet_count(stl), None, shown, {"scad": str(scad)},
+                   report=report)
 
 
 def _resize_now(ctx: CommandContext, stem: str, label: str, part: dict[str, Any],
@@ -835,7 +1380,8 @@ def _slicing(ctx: CommandContext, stem: str, *, fresh: bool = False) -> dict[str
     stl = prints_dir(ctx) / f"{stem}.stl"
     kind = record.get("kind") or ("make" if (prints_dir(ctx) / f"{stem}.scad").is_file() else "sculpt")
     try:
-        found = slicing.for_part(stl, kind=kind, material=material, watertight=record.get("watertight"))
+        found = slicing.for_part(stl, kind=kind, material=material, watertight=record.get("watertight"),
+                                 unsupported=bool(record.get("template")))
     except (OSError, ValueError, struct.error) as exc:
         log.info("no slicer settings for %s: %s", stem, exc)
         return {}

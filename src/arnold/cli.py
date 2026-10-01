@@ -1095,7 +1095,7 @@ def cmd_printer(args: argparse.Namespace) -> int:
             print(f"{'ok ' if ok else 'MISSING'}  {label:18} {where}")
         using = sculpt.where(config.printer.sculpt_backend, local)
         print(f"sculpt_backend is {config.printer.sculpt_backend}: shapes are made "
-              + ("on this PC" if using == "local" else "on Hugging Face"))
+              + {"local": "on this PC", "tencent": "on Tencent Cloud"}.get(using, "on Hugging Face"))
         return 0 if local.ready else 1
 
     if args.action == "test":

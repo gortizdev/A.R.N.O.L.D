@@ -363,17 +363,22 @@ printer:
   # version of a part, the original kept.
   adjust_image_model: gpt-image-1.5   # gpt-image-1 barely changes anything it edits
   adjust_code_model: gpt-5.4-mini
+  design_model: gpt-5.4           # writes a working part's OpenSCAD from scratch (printer.design); falls back to adjust_code_model
   sculpt_space: tencent/Hunyuan3D-2
   sculpt_views: front-side-back   # front-side-back (three views) | front-back | front
   sculpt_check_model: gpt-5.4-mini # tells which way the side view faces
   sculpt_ask_model: gpt-5.4-mini   # asks follow-up questions before sculpting a short request
-  sculpt_backend: auto       # auto | local | space - auto uses this PC's GPU once models/hy3d is set up
+  sculpt_backend: auto       # auto | local | space | tencent - auto uses this PC's GPU once models/hy3d is set up
   sculpt_mv_space: tencent/Hunyuan3D-2mv
   sculpt_local_python: ""    # blank = models/hy3d/.venv beside this file
   sculpt_local_repo: ""      # blank = models/hy3d/Hunyuan3D-2
   sculpt_local_model: tencent/Hunyuan3D-2mv
   sculpt_local_subfolder: hunyuan3d-dit-v2-mv-turbo
-  sculpt_local_steps: 5
+  sculpt_local_steps: 20
+  sculpt_candidates: 3       # shapes made per sculpture on this PC; the best is kept
+  sculpt_tencent_extra: false  # also one shape from Tencent Hunyuan 3D 3.x (credits; keys in TENCENTCLOUD_SECRET_ID/KEY)
+  sculpt_tencent_region: ap-singapore
+  sculpt_tencent_model: "3.1"
   sculpt_hf_token: ""        # blank = HF_TOKEN, then `hf auth login`
   sculpt_height_mm: 60
   sculpt_max_faces: 150000

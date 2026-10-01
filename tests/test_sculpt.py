@@ -134,7 +134,7 @@ class TestCommand:
         assert names == [".glb", ".json", ".png", ".stl"]
         record = Catalog(job.dir).list()[0]
         assert record["state"] == "done" and record["prompt"] == "a sitting frog"
-        assert set(record["stages"]) == {"drawing", "shaping", "cleaning"}
+        assert set(record["stages"]) == {"drawing", "shaping", "cleaning", "checking"}
         assert all(len(span) == 2 for span in record["stages"].values())
 
     def test_a_picture_skips_the_drawing(self, job, tmp_path):
@@ -354,6 +354,101 @@ class TestViews:
             widths.append(box[2] - box[0])
         assert widths == [150, 90, 170]
 
+    @pytest.mark.parametrize("left, right, cut", [
+        (180, 1200, []),              # every view whole
+        (0, 1200, ["front"]),         # the front runs off the left edge
+        (180, 1400, ["back"]),        # the back runs off the right edge
+    ])
+    def test_a_view_the_drawing_cropped_is_found(self, tmp_path, left, right, cut):
+        from PIL import Image, ImageDraw
+
+        image = Image.new("RGB", (1536, 1024), (238, 231, 226))  # a cream backdrop, as drawn
+        draw = ImageDraw.Draw(image)
+        draw.rectangle((left, 300, left + 250, 700), fill=(120, 120, 120))
+        draw.rectangle((650, 300, 900, 700), fill=(120, 120, 120))
+        draw.rectangle((right, 300, right + 250, 700), fill=(120, 120, 120))
+        image.save(tmp_path / "sheet.png")
+        assert sculpt.cut_off(tmp_path / "sheet.png", sculpt.THREE) == cut
+
+    @pytest.mark.parametrize("left_after, draws", [([], 1), (["front"], 2)])
+    def test_a_cropped_sheet_is_mended_else_drawn_again(self, job, monkeypatch, left_after, draws):
+        mended = []
+        monkeypatch.setattr(sculpt, "cut_off", lambda sheet, views: ["front"])
+        monkeypatch.setattr(sculpt, "uncrop", lambda sheet, views, **kw: mended.append(kw["cut"]) or left_after)
+        result = job(title="Car", prompt="an F1 car", views="front-side-back")
+        assert result.ok, result.speech
+        assert mended == [["front"]] and len(job.calls["draw"]) == draws
+
+    def test_another_take_mends_the_old_sheet(self, job, monkeypatch):
+        first = job(title="Car", prompt="an F1 car", views="front-side-back").result["name"]
+        mended = []
+        monkeypatch.setattr(sculpt, "cut_off", lambda sheet, views: ["front"])
+        monkeypatch.setattr(sculpt, "uncrop", lambda sheet, views, **kw: mended.append(sheet.name) or [])
+        again = job(again=first).result["name"]
+        assert mended == [f"{again}.png"]  # the new part's copy, not the original
+
+    def test_a_mend_that_cannot_be_had_still_makes_the_part(self, job, monkeypatch):
+        monkeypatch.setattr(sculpt, "cut_off", lambda sheet, views: ["front"])
+
+        def fail(sheet, views, **kw):
+            raise sculpt.SculptError("no key")
+
+        monkeypatch.setattr(sculpt, "uncrop", fail)
+        assert job(title="Car", prompt="an F1 car", views="front-side-back").ok
+
+    def cropped_sheet(self, path, left=0):
+        from PIL import Image, ImageDraw
+
+        image = Image.new("RGB", (1536, 1024), (238, 231, 226))
+        draw = ImageDraw.Draw(image)
+        for x in (left, 650, 1100):
+            draw.rectangle((x, 300, x + 250, 700), fill=(120, 120, 120))
+        image.save(path)
+        return path
+
+    def test_uncrop_paints_only_the_border_and_keeps_a_better_sheet(self, tmp_path, monkeypatch):
+        import io
+
+        from PIL import Image
+
+        monkeypatch.setenv("OPENAI_API_KEY", "k")
+        sent = {}
+
+        def post(key, fields, picture, timeout, mask=None):
+            sent.update(fields, mask=Image.open(io.BytesIO(mask)))
+            return self.cropped_sheet(tmp_path / "whole.png", left=150).read_bytes()
+
+        monkeypatch.setattr(sculpt, "_post_edit", post)
+        sheet = self.cropped_sheet(tmp_path / "sheet.png")
+        assert sculpt.uncrop(sheet, sculpt.THREE, model="gpt-image-1.5") == []
+        assert "the view on the left" in sent["prompt"] and sent["size"] == "1536x1024"
+        alpha = sent["mask"].getchannel("A")
+        assert alpha.getpixel((5, 5)) == 0 and alpha.getpixel((768, 512)) == 255
+        assert sculpt.cut_off(sheet, sculpt.THREE) == []  # replaced by the mended one
+
+    def test_uncrop_keeps_the_original_when_it_is_no_better(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "k")
+        before = self.cropped_sheet(tmp_path / "sheet.png").read_bytes()
+        monkeypatch.setattr(sculpt, "_post_edit", lambda *a, **kw: before)
+        assert sculpt.uncrop(tmp_path / "sheet.png", sculpt.THREE, model="m") == ["front"]
+        assert (tmp_path / "sheet.png").read_bytes() == before
+
+    def test_gaps_that_show_the_backdrop_are_not_filled(self):
+        pytest.importorskip("cv2")
+        import numpy as np
+        from PIL import Image
+
+        from arnold.hy3d_worker import plain_matte
+
+        # A grey frame on cream: the window in it shows the backdrop, so it
+        # is air - but a light patch of clay, far below the backdrop, is not.
+        rgb = np.full((400, 400, 3), (238, 231, 226), np.uint8)
+        rgb[100:300, 100:300] = 120
+        rgb[140:260, 140:190] = (238, 231, 226)  # the window
+        rgb[140:260, 220:260] = 200              # a highlight on the clay
+        alpha = np.asarray(plain_matte(Image.fromarray(rgb)))[:, :, 3]
+        assert alpha[200, 165] < 64 and alpha[200, 240] > 192 and alpha[120, 120] > 192
+
     @pytest.mark.parametrize("facing, expected", [("left", {"front", "left", "back"}),
                                                   ("right", {"front", "right", "back"}),
                                                   (None, {"front", "back"})])
@@ -376,3 +471,165 @@ class TestViews:
         photo.write_bytes(b"png")
         job(title="Cat", image=str(photo))
         assert Catalog(job.dir).list()[0]["views"] == "front"
+
+
+class TestCandidates:
+    def test_the_candidates_are_found_in_order(self, tmp_path):
+        out = tmp_path / "20260930-120000-car.glb"
+        for name in ("20260930-120000-car.glb", "20260930-120000-car.10.glb", "20260930-120000-car.2.glb",
+                     "20260930-120000-car.1.glb", "20260930-120000-cart.glb"):
+            (tmp_path / name).write_bytes(b"x")
+        assert [p.name for p in sculpt.candidates_of(out)] == [
+            "20260930-120000-car.glb", "20260930-120000-car.1.glb", "20260930-120000-car.2.glb",
+            "20260930-120000-car.10.glb"]
+
+    def test_the_best_looking_shape_is_kept(self, job, monkeypatch, tmp_path):
+        from arnold import check
+
+        fixture = generator_mesh(tmp_path / "cand.glb")
+
+        def shape(image, out, *, candidates=1, **kw):
+            for i in range(candidates):
+                shutil.copyfile(fixture, out if i == 0 else out.with_name(f"{out.stem}.{i}.glb"))
+            return out
+
+        ranked = []
+        monkeypatch.setattr(sculpt, "shape", shape)
+        monkeypatch.setattr(sculpt, "where", lambda backend, local: "local")
+        monkeypatch.setattr(printer_cmd, "find_openscad", lambda configured="": tmp_path / "openscad.exe")
+        monkeypatch.setattr(check, "rank", lambda ref, stls, **kw: ranked.append(len(stls)) or [2, 0, 1])
+        result = job(title="Car", prompt="an F1 car")
+        assert result.ok, result.speech
+        record = Catalog(job.dir).list()[0]
+        assert ranked == [3] and record["chosen"] == 3 and record["ranking"] == [3, 1, 2]
+        assert "choosing" in record["stages"]
+        assert sorted(p.name for p in job.dir.glob("*.glb")) == [f"{record['name']}.glb"]  # the rest gone
+        assert not list(job.dir.glob(".choose-*"))
+
+    def test_without_a_ranking_the_first_is_kept(self, job, monkeypatch, tmp_path):
+        from arnold import check
+
+        fixture = generator_mesh(tmp_path / "cand.glb")
+
+        def shape(image, out, *, candidates=1, **kw):
+            for i in range(candidates):
+                shutil.copyfile(fixture, out if i == 0 else out.with_name(f"{out.stem}.{i}.glb"))
+            return out
+
+        monkeypatch.setattr(sculpt, "shape", shape)
+        monkeypatch.setattr(sculpt, "where", lambda backend, local: "local")
+        monkeypatch.setattr(check, "rank", lambda ref, stls, **kw: None)
+        assert job(title="Car", prompt="an F1 car").ok
+        record = Catalog(job.dir).list()[0]
+        assert record["chosen"] == 1 and record["ranking"] is None
+
+
+class TestCloudCandidate:
+    def stub(self, job, monkeypatch, tmp_path, cloud_ok=True):
+        from arnold import check, tencent
+
+        fixture = generator_mesh(tmp_path / "cand.glb")
+        shaped = []
+
+        def shape(image, out, *, candidates=1, backend="auto", **kw):
+            shaped.append(backend)
+            if backend == "tencent":
+                if not cloud_ok:
+                    raise sculpt.SculptError("Tencent Cloud said LimitExceeded")
+                shutil.copyfile(fixture, out)
+                return out
+            for i in range(candidates):
+                shutil.copyfile(fixture, out if i == 0 else out.with_name(f"{out.stem}.{i}.glb"))
+            return out
+
+        monkeypatch.setattr(sculpt, "shape", shape)
+        monkeypatch.setattr(sculpt, "where", lambda backend, local: "local")
+        monkeypatch.setattr(tencent, "configured", lambda: True)
+        monkeypatch.setattr(printer_cmd, "find_openscad", lambda configured="": tmp_path / "openscad.exe")
+        ranked = []
+        # The last candidate first: with the cloud's shape, that is the cloud's.
+        monkeypatch.setattr(check, "rank", lambda ref, stls, **kw: ranked.append(len(stls))
+                            or list(range(len(stls)))[::-1])
+        job.ctx.config.printer.sculpt_tencent_extra = True
+        return shaped, ranked
+
+    def test_a_tencent_shape_joins_the_choosing(self, job, monkeypatch, tmp_path):
+        shaped, ranked = self.stub(job, monkeypatch, tmp_path)
+        assert job(title="Car", prompt="an F1 car").ok
+        record = Catalog(job.dir).list()[0]
+        assert sorted(shaped) == ["auto", "tencent"] and ranked == [4]
+        assert record["cloud"] == 4 and record["chosen"] == 4  # the cloud shape won here
+
+    def test_a_cloud_failure_leaves_this_pcs_shapes(self, job, monkeypatch, tmp_path):
+        shaped, ranked = self.stub(job, monkeypatch, tmp_path, cloud_ok=False)
+        from arnold import check
+
+        monkeypatch.setattr(check, "rank", lambda ref, stls, **kw: ranked.append(len(stls)) or [1, 0, 2])
+        assert job(title="Car", prompt="an F1 car").ok
+        record = Catalog(job.dir).list()[0]
+        assert ranked == [3] and "cloud" not in record and record["chosen"] == 2
+
+    def test_off_by_default(self, job, monkeypatch, tmp_path):
+        shaped, _ = self.stub(job, monkeypatch, tmp_path)
+        job.ctx.config.printer.sculpt_tencent_extra = False
+        assert job(title="Car", prompt="an F1 car").ok
+        assert shaped == ["auto"]
+
+
+class TestFourViews:
+    def sheet(self, path, *, crop_bottom_right=False):
+        from PIL import Image, ImageDraw
+
+        image = Image.new("RGB", (1536, 1024), (238, 231, 226))
+        draw = ImageDraw.Draw(image)
+        # front and back narrow in the top row, the two long profiles below
+        draw.rectangle((250, 150, 450, 380), fill=(120, 120, 120))
+        draw.rectangle((1050, 150, 1250, 380), fill=(120, 120, 120))
+        draw.rectangle((80, 640, 700, 880), fill=(120, 120, 120))
+        right = 1536 if crop_bottom_right else 1450
+        draw.rectangle((850, 640, right, 880), fill=(120, 120, 120))
+        image.save(path)
+        return path
+
+    def test_a_grid_splits_row_by_row_at_one_scale(self, tmp_path):
+        from PIL import Image, ImageOps
+
+        views = sculpt.split_views(self.sheet(tmp_path / "s.png"), tmp_path / "v", sculpt.FOUR)
+        assert list(views) == ["front", "back", "side", "side2"]
+        widths = []
+        for path in views.values():
+            box = ImageOps.invert(Image.open(path).convert("L")).point(lambda v: 255 if v > 40 else 0).getbbox()
+            widths.append(box[2] - box[0])
+        assert widths == [201, 201, 621, 601]  # nothing rescaled or sliced
+
+    def test_only_the_view_against_the_edge_is_cut_off(self, tmp_path):
+        assert sculpt.cut_off(self.sheet(tmp_path / "s.png"), sculpt.FOUR) == []
+        assert sculpt.cut_off(self.sheet(tmp_path / "c.png", crop_bottom_right=True), sculpt.FOUR) == ["side2"]
+
+    @pytest.mark.parametrize("facings, expected", [
+        (["left", "right"], {"front", "back", "left", "right"}),
+        (["right", "right"], {"front", "back", "right"}),     # the same side twice: once
+        ([None, "left"], {"front", "back", "left"}),           # an unclear one left out
+    ])
+    def test_both_sides_are_named_for_their_facing(self, tmp_path, monkeypatch, facings, expected):
+        seen = {}
+        monkeypatch.setattr(sculpt, "shape_space", lambda views, out, **kw: seen.update(views) or out)
+        sculpt.shape(self.sheet(tmp_path / "s.png"), tmp_path / "o.glb", views=sculpt.FOUR, side=facings,
+                     backend="space")
+        assert set(seen) == expected
+
+    def test_the_facings_are_asked_of_both_bottom_views(self, tmp_path, monkeypatch):
+        asked = []
+        monkeypatch.setattr(sculpt, "_ask_about", lambda sheet, question, **kw: asked.append(question)
+                            or {"bottom_left": "right", "bottom_right": "unsure"})
+        assert sculpt.side_facing(tmp_path / "s.png", model="m", views=sculpt.FOUR) == ["right", None]
+        assert "bottom_left" in asked[0]
+
+    def test_a_drawn_four_view_sculpture_keeps_both_facings(self, job, monkeypatch):
+        monkeypatch.setattr(sculpt, "side_facing", lambda sheet, **kw: ["left", "right"]
+                            if kw.get("views") == sculpt.FOUR else "left")
+        job.ctx.config.printer.sculpt_views = sculpt.FOUR
+        result = job(title="Car", prompt="an F1 car")
+        assert result.ok, result.speech
+        record = Catalog(job.dir).list()[0]
+        assert record["views"] == sculpt.FOUR and record["side"] == ["left", "right"]

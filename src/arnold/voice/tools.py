@@ -60,7 +60,7 @@ PC_COMMANDS = [
     "code.task", "code.status", "code.projects",
     "claude.list", "claude.status", "claude.prompt", "claude.apps", "claude.open",
     "memory.remember", "memory.recall", "memory.forget", "memory.list",
-    "printer.status", "printer.make", "printer.sculpt", "printer.adjust", "printer.parts", "printer.open",
+    "printer.status", "printer.make", "printer.design", "printer.sculpt", "printer.adjust", "printer.check", "printer.parts", "printer.open",
     "printer.settings",
 ]
 
@@ -154,6 +154,15 @@ def build_tools(config) -> list[dict]:
                 "previous code and call it again. It never starts a print - the user "
                 "checks it in the slicer and prints from there. Say the size it "
                 "reports.\n"
+                "printer.design is the same for a working part you would rather "
+                "not code yourself - a box, pouch, case, holder, clip, anything "
+                "with a cavity, a lid, a hinge, a latch or a belt loop: "
+                '{"title":"belt pouch","prompt":"a pouch 30 x 25 x 60 mm, hollow, '
+                'hinged flap with a snap catch, loop for a 40 mm belt"}. A design '
+                "model writes the OpenSCAD with real clearances; it takes a minute "
+                "or two and says when it is in the slicer. Put what it must do and "
+                "any sizes in the prompt, and any themed look too - it adds that "
+                "as relief on the surfaces.\n"
                 "printer.sculpt is for ORGANIC shapes OpenSCAD cannot draw - an "
                 "animal, a character, a bust, a figurine: "
                 '{"title":"dragon","prompt":"a small cartoon dragon sitting",'
@@ -167,8 +176,19 @@ def build_tools(config) -> list[dict]:
                 "answer into one detailed visual prompt. Skip the questions "
                 "when the request is already specific or the user says just do "
                 "it. It takes about a minute and says when it is in the "
-                "slicer, so tell the user it is under way and carry on. Use "
-                "printer.make for anything with measurements that must fit.\n"
+                "slicer, so tell the user it is under way and carry on. A "
+                "sculpture is a skin over a picture: it can never hinge, latch "
+                "or fit anything. Anything that has to open, hold, fit or "
+                "attach is printer.make or printer.design, even when it is "
+                "themed - a Cyclops belt pouch is a design with a Cyclops look, "
+                "not a sculpture. What a sculpture CAN carry is a few working "
+                "features merged into its mesh: "
+                '{"addons":"plinth, magnet 8x3, keyring, hollow open top"} - a '
+                "plinth to stand on (the fix for tipping over), a magnet pocket "
+                "underneath, a key ring loop on top, hollowing (open top makes "
+                "a planter or pencil pot). 'A dragon keychain' or 'a frog "
+                "planter' gets them without asking, and printer.adjust adds "
+                'them to one already made: {"change":"add a key ring loop"}.\n'
                 "printer.adjust makes a NEW VERSION of a part with one change, "
                 "keeping the original: "
                 '{"name":"turtle","change":"give it a small party hat"} or '
@@ -176,7 +196,21 @@ def build_tools(config) -> list[dict]:
                 '{"height_mm":80} alone to just resize a sculpture. Use it for '
                 "any 'make it...', 'change the...', 'can you add...' about a part "
                 "already made - including one from an earlier conversation. A "
-                "sculpture takes about a minute and says when it is done.\n"
+                "sculpture asked for something that has to work - hollow inside, "
+                "a hinge, a lid, a fit, a loop size - is redesigned as OpenSCAD "
+                "that keeps its look; say so. A sculpture takes about a minute "
+                "and says when it is done. A designed part's look changes the "
+                "same way - 'make it look like a treasure chest', 'put a wolf "
+                "emblem on the flap', or "
+                '{"image":"C:\\\\path\\\\crest.png"} to put a picture on it as '
+                "an emblem - and its hinge, fits and loops are kept exactly; a "
+                "picture given with printer.design becomes its emblem too.\n"
+                "Every part is checked before it reaches the slicer - pieces, loose "
+                "bits, thin walls, whether it is hollow, balance - and a design is "
+                "fixed and checked again; anything still wrong comes back as 'one "
+                "thing to check', so pass that on. After printer.make, fix what the "
+                "check found and call it again. printer.check "
+                '{"name":"owl"} checks an earlier part.\n'
                 "printer.parts lists what has been made so far; printer.open "
                 '{"name":"owl"} puts an earlier part back in the slicer. '
                 'printer.settings {"name":"owl"} is the slicer settings worked out '

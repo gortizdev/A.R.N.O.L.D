@@ -56,10 +56,12 @@ SHEET_PROMPT = (
     "3D-printed figurine. Exactly two views side by side at the same scale and the "
     "same height: on the LEFT half the FRONT view, looking straight at it; on the "
     "RIGHT half the BACK view of the same figurine, seen from directly behind. "
-    "Orthographic, eye level, each view whole and centred in its half with space "
-    "around it, sturdy proportions with no very thin parts, resting on a flat "
-    "bottom, plain white background, soft even studio lighting, no shadows, no "
-    "text, no labels, no dividing line."
+    "Orthographic, eye level, each view whole and centred in its half with a wide "
+    "empty margin all round - no view may touch or run off the edge of the picture, "
+    "so draw a long object small enough to fit - sturdy proportions with no very "
+    "thin parts, resting on a flat bottom, plain white background, soft even studio "
+    "lighting, no shadows, no text, no labels, no dividing line. Every view shows "
+    "exactly the same object, with or without the same base in all of them."
 )
 THREE_PROMPT = (
     "A turnaround reference sheet of one object: {subject}, as a matte grey clay "
@@ -67,9 +69,29 @@ THREE_PROMPT = (
     "same height, orthographic, eye level: on the LEFT the FRONT view, looking "
     "straight at its front; in the MIDDLE the SIDE view in exact profile, turned 90 "
     "degrees; on the RIGHT the BACK view, seen from directly behind. Each view whole "
-    "and centred in its third with space around it, sturdy proportions with no very "
-    "thin parts, resting on a flat bottom, plain white background, soft even studio "
-    "lighting, no shadows, no text, no labels, no dividing lines."
+    "and centred in its third with a wide empty margin all round - no view may touch "
+    "or run off the edge of the picture, so draw a long object small enough to fit - "
+    "sturdy proportions with no very thin parts, resting on a flat bottom, plain "
+    "white background, soft even studio lighting, no shadows, no text, no labels, no "
+    "dividing lines. Every view shows exactly the same object, with or without the "
+    "same base in all of them."
+)
+# Four views, one in each corner: both sides, so an object that is not the
+# same on its left and right - a sword in one hand, a wheel arch cut away -
+# is seen whole, and a long object's profiles get the wide cells they need.
+FOUR_PROMPT = (
+    "A turnaround reference sheet of one object: {subject}, as a matte grey clay "
+    "3D-printed model. Exactly four views of the same object in a two-by-two grid, all "
+    "at the same scale, orthographic, eye level: TOP LEFT the FRONT view, looking "
+    "straight at its front; TOP RIGHT the BACK view, seen from directly behind; BOTTOM "
+    "LEFT and BOTTOM RIGHT the two SIDE views in exact profile, one from its left side "
+    "and one from its right side. Each view whole and centred in its quarter with a "
+    "wide empty margin all round - no view may touch the edge of the picture or cross "
+    "into another quarter, so draw a long object small enough to fit - sturdy "
+    "proportions with no very thin parts, resting on a flat bottom, plain white "
+    "background, soft even studio lighting, no shadows, no text, no labels, no "
+    "dividing lines. Every view shows exactly the same object, with or without the "
+    "same base in all of them."
 )
 # One view, for when views is "front": cheaper, and what older parts used.
 IMAGE_PROMPT = (
@@ -97,8 +119,16 @@ class Part:
 
 SHEET = "front-back"
 THREE = "front-side-back"
-# The order the views sit in across a sheet, left to right.
-LAYOUTS = {SHEET: ("front", "back"), THREE: ("front", "side", "back")}
+FOUR = "front-back-sides"
+# The order the views sit in on a sheet: left to right, row by row.
+LAYOUTS = {SHEET: ("front", "back"), THREE: ("front", "side", "back"),
+           FOUR: ("front", "back", "side", "side2")}
+# Rows and columns; a layout not here is one row.
+GRIDS = {FOUR: (2, 2)}
+
+
+def grid(views: str) -> tuple[int, int]:
+    return GRIDS.get(views, (1, len(LAYOUTS.get(views, ("front",)))))
 
 
 def draw(subject: str, out: Path, *, model: str, views: str = SHEET, timeout: float = 180.0) -> Path:
@@ -107,7 +137,7 @@ def draw(subject: str, out: Path, *, model: str, views: str = SHEET, timeout: fl
     key = os.environ.get("OPENAI_API_KEY", "")
     if not key:
         raise SculptError("I need an OpenAI key to draw the reference picture, and OPENAI_API_KEY isn't set.")
-    prompt = {SHEET: SHEET_PROMPT, THREE: THREE_PROMPT}.get(views, IMAGE_PROMPT)
+    prompt = {SHEET: SHEET_PROMPT, THREE: THREE_PROMPT, FOUR: FOUR_PROMPT}.get(views, IMAGE_PROMPT)
     body = json.dumps({
         "model": model,
         "prompt": prompt.format(subject=subject.strip().rstrip(".")),
@@ -153,6 +183,10 @@ SHEET_EDIT = {
             "left, the side view in the middle and the back view on the right. Make the "
             "change on every view, consistently, and keep all three in one row at the "
             "same scale."),
+    FOUR: (" The picture shows the same object four times in a two-by-two grid - the "
+           "front view top left, the back view top right and its two side views along the "
+           "bottom. Make the change on every view, consistently, and keep all four in "
+           "their corners at the same scale."),
 }
 
 
@@ -194,7 +228,10 @@ def edit(picture: Path, change: str, out: Path, *, model: str, views: str = "fro
     return out
 
 
-def _post_edit(key: str, fields: dict[str, str], picture: Path, timeout: float) -> bytes:
+def _post_edit(key: str, fields: dict[str, str], picture: Path, timeout: float,
+               mask: bytes | None = None) -> bytes:
+    """One call to the edit endpoint. `mask` is a PNG the picture's size whose
+    transparent pixels are where the model may paint."""
     boundary = uuid.uuid4().hex
     parts = [
         f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'.encode()
@@ -206,6 +243,11 @@ def _post_edit(key: str, fields: dict[str, str], picture: Path, timeout: float) 
         f'filename="picture{picture.suffix.lower()}"\r\nContent-Type: image/{kind}\r\n\r\n'.encode()
         + picture.read_bytes() + b"\r\n"
     )
+    if mask is not None:
+        parts.append(
+            f'--{boundary}\r\nContent-Disposition: form-data; name="mask"; '
+            f'filename="mask.png"\r\nContent-Type: image/png\r\n\r\n'.encode() + mask + b"\r\n"
+        )
     parts.append(f"--{boundary}--\r\n".encode())
     request = urllib.request.Request(
         EDIT_URL, data=b"".join(parts), method="POST",
@@ -226,33 +268,42 @@ def _openai_error(exc: urllib.error.HTTPError) -> str:
 
 def split_views(sheet: Path, out_dir: Path, views: str = SHEET) -> dict[str, Path]:
     """A turnaround sheet -> {"front": png, "side": png, "back": png} (or
-    front and back only), in the order LAYOUTS gives.
+    whichever views its layout has), in the order LAYOUTS gives.
 
-    Each cut goes down the emptiest column near where it is expected rather
-    than exactly there, so a wing that strays over is not sliced off. Each
-    view is padded out to a square on white without being rescaled: the
-    multi-view model reads them as one object seen from several sides, and
-    that only holds if they are all at the same scale.
+    Each cut goes along the emptiest line near where it is expected rather
+    than exactly there, so a wing that strays over is not sliced off - rows
+    first on a grid, then the columns within each row. Each view is padded
+    out to a square on white without being rescaled: the multi-view model
+    reads them as one object seen from several sides, and that only holds if
+    they are all at the same scale.
     """
     import numpy as np
     from PIL import Image, ImageOps
 
     names = LAYOUTS.get(views, LAYOUTS[SHEET])
+    rows, cols = grid(views) if views in LAYOUTS else (1, len(names))
     image = Image.open(sheet).convert("RGB")
     width, height = image.size
-    columns = (255 - np.asarray(image.convert("L"), dtype=np.int64)).sum(axis=0)  # ink per column
-    n = len(names)
-    cuts = [0]
-    for k in range(1, n):
-        expected = width * k // n
-        lo, hi = expected - width // (n * 4), expected + width // (n * 4)
-        cuts.append(min(range(lo, hi), key=lambda x: (columns[x], abs(x - expected))))
-    cuts.append(width)
+    ink = 255 - np.asarray(image.convert("L"), dtype=np.int64)
+
+    def cuts(profile, length: int, n: int) -> list[int]:
+        found = [0]
+        for k in range(1, n):
+            expected = length * k // n
+            lo, hi = expected - length // (n * 4), expected + length // (n * 4)
+            found.append(min(range(lo, hi), key=lambda x: (profile[x], abs(x - expected))))
+        return found + [length]
+
+    across = cuts(ink.sum(axis=1), height, rows)
+    cells = []
+    for top, bottom in zip(across, across[1:]):
+        down = cuts(ink[top:bottom].sum(axis=0), width, cols)
+        cells += [(left, top, right, bottom) for left, right in zip(down, down[1:])]
 
     out_dir.mkdir(parents=True, exist_ok=True)
     found = {}
-    for name, left, right in zip(names, cuts, cuts[1:]):
-        part = image.crop((left, 0, right, height))
+    for name, box in zip(names, cells):
+        part = image.crop(box)
         # Centre the object in its square: shift by where its ink sits.
         mask = ImageOps.invert(part.convert("L")).point(lambda v: 255 if v > 24 else 0)
         bounds = mask.getbbox() or (0, 0, part.width, part.height)
@@ -265,6 +316,130 @@ def split_views(sheet: Path, out_dir: Path, views: str = SHEET) -> dict[str, Pat
     return found
 
 
+def cut_off(sheet: Path, views: str = SHEET) -> list[str]:
+    """The views of a sheet whose object runs off the edge of the picture.
+
+    The drawing is asked for every view whole and does not always oblige: a
+    long object - a car, a sword - gets its front view's wheel sliced off by
+    the frame. A view like that tells the shape model the object ends in a
+    straight cut, and it builds one. Only the sheet's own edges count; the
+    cuts between views are split_views' business.
+    """
+    import numpy as np
+    from PIL import Image
+
+    names = LAYOUTS.get(views)
+    if not names:
+        return []
+    try:
+        grey = np.asarray(Image.open(sheet).convert("L"), dtype=np.int16)
+    except OSError:
+        return []
+    height, width = grey.shape
+    border = np.concatenate([grey[0], grey[-1], grey[:, 0], grey[:, -1]])
+    ink = grey < np.median(border) - 50  # the clay, well below any backdrop
+    rows, cols = grid(views)
+    cut = []
+    for i, name in enumerate(names):
+        r, c = divmod(i, cols)
+        top, bottom = height * r // rows, height * (r + 1) // rows
+        left, right = width * c // cols, width * (c + 1) // cols
+        # Only the sheet's own edges this view's cell lies against.
+        edges = []
+        if r == 0:
+            edges.append(ink[0, left:right])
+        if r == rows - 1:
+            edges.append(ink[-1, left:right])
+        if c == 0:
+            edges.append(ink[top:bottom, 0])
+        if c == cols - 1:
+            edges.append(ink[top:bottom, -1])
+        if any(edge.sum() > max(4, 0.01 * len(edge)) for edge in edges):
+            cut.append(name)
+    return cut
+
+
+UNCROP_PROMPT = (
+    "This turnaround reference sheet was drawn with {which} cut off by the edge of the "
+    "frame. It has been shrunk onto a larger canvas: paint the empty border so that every "
+    "view is whole - finish the cut-off part of the object exactly as the rest of it looks, "
+    "and carry on the plain background. Change nothing else: the same views in the same "
+    "places at the same scale, the same matte grey clay and lighting. No text, no labels, "
+    "no dividing lines."
+)
+
+
+def uncrop(sheet: Path, views: str, *, model: str, cut: list[str] | None = None,
+           shrink: float = 0.8, timeout: float = 240.0) -> list[str]:
+    """Mend a sheet whose views run off its edge, in place: shrunk onto a
+    bigger canvas, with the border painted in by the image model so the cut
+    views are finished. Keeps the views that were fine, which drawing it all
+    again would not. Returns the views still cut off afterwards; the sheet is
+    only replaced when the mending made it better."""
+    import io
+
+    import numpy as np
+    from PIL import Image
+
+    names = LAYOUTS.get(views)
+    cut = cut_off(sheet, views) if cut is None else cut
+    if not names or not cut:
+        return []
+    key = os.environ.get("OPENAI_API_KEY", "")
+    if not key:
+        raise SculptError("I need an OpenAI key to mend the picture, and OPENAI_API_KEY isn't set.")
+    image = Image.open(sheet).convert("RGB")
+    width, height = image.size
+    pixels = np.asarray(image)
+    border = np.concatenate([pixels[0], pixels[-1], pixels[:, 0], pixels[:, -1]])
+    backdrop = tuple(int(v) for v in np.median(border, axis=0))
+    small = image.resize((round(width * shrink), round(height * shrink)), Image.LANCZOS)
+    x0, y0 = (width - small.width) // 2, (height - small.height) // 2
+    canvas = Image.new("RGB", (width, height), backdrop)
+    canvas.paste(small, (x0, y0))
+    # Opaque where the old picture stays; the border, and a few pixels into
+    # the old frame so the join is painted over too, are the model's.
+    mask = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    inset = 8
+    mask.paste((0, 0, 0, 255), (x0 + inset, y0 + inset, x0 + small.width - inset, y0 + small.height - inset))
+    buffer = io.BytesIO()
+    mask.save(buffer, "PNG")
+    rows, cols = grid(views)
+
+    def place(name: str) -> str:
+        r, c = divmod(names.index(name), cols)
+        if rows > 1:
+            return f"the view in the {('top', 'bottom')[r]} {('left', 'right')[c]} corner"
+        return "the view on the left" if c == 0 else "the view on the right" if c == cols - 1 \
+            else f"the {name} view"
+
+    which = " and ".join(place(n) for n in cut)
+    fields = {"model": model, "prompt": UNCROP_PROMPT.format(which=which),
+              "size": f"{width}x{height}", "quality": "medium"}
+    if model in ("gpt-image-1", "gpt-image-1-mini"):
+        fields["input_fidelity"] = "high"
+    import tempfile
+
+    with tempfile.TemporaryDirectory(prefix="arnold-uncrop-") as work:
+        padded = Path(work) / "sheet.png"
+        canvas.save(padded)
+        try:
+            data = _post_edit(key, fields, padded, timeout, mask=buffer.getvalue())
+        except urllib.error.HTTPError as exc:
+            raise SculptError(f"The image model wouldn't mend the picture: {_openai_error(exc)}") from None
+        except (urllib.error.URLError, OSError, KeyError, IndexError, ValueError) as exc:
+            raise SculptError(f"I couldn't get the picture mended: {exc}") from None
+        mended = Path(work) / "mended.png"
+        mended.write_bytes(data)
+        left = cut_off(mended, views)
+        if len(left) >= len(cut):
+            log.info("mending %s left %s still cut off; keeping the original", sheet.name, left)
+            return cut
+        with Image.open(mended) as fixed:
+            fixed.convert("RGB").resize((width, height)).save(sheet)
+    return left
+
+
 CHAT_URL = "https://api.openai.com/v1/chat/completions"
 FACING_QUESTION = (
     "This reference sheet shows one object three times: the FRONT view on the left, a "
@@ -273,18 +448,39 @@ FACING_QUESTION = (
     "left-hand view) face: left or right? "
     'Reply with JSON only: {"front_faces": "left" | "right" | "unsure"}'
 )
+FACINGS_QUESTION = (
+    "This reference sheet shows one object four times: the FRONT view top left, the "
+    "BACK view top right, and two SIDE views along the bottom. In each bottom side "
+    "view, which edge of the picture does the object's front (the side seen in the "
+    "top-left view) face: left or right? "
+    'Reply with JSON only: {"bottom_left": "left" | "right" | "unsure", '
+    '"bottom_right": "left" | "right" | "unsure"}'
+)
 
 
-def side_facing(sheet: Path, *, model: str, timeout: float = 60.0) -> str | None:
-    """Which way the side view on a three-view sheet faces: "left" or "right".
+def side_facing(sheet: Path, *, model: str, views: str = THREE,
+                timeout: float = 60.0) -> str | list[str | None] | None:
+    """Which way a sheet's side view faces: "left" or "right" - or, for a
+    four-view sheet, a list with the answer for each bottom view.
 
     Asked, not assumed. The drawing is told which way to turn it and does
     not reliably listen, and the shape model has to know: a side view
     labelled the wrong way round puts the belt loop on the front. The answer
     is also the side's name to the shape model - an object whose front
     points left is seen from its own left. None when there is no telling,
-    and the side view is then left out rather than guessed.
+    and that side view is then left out rather than guessed.
     """
+    four = views == FOUR
+    answer = _ask_about(sheet, FACINGS_QUESTION if four else FACING_QUESTION, model=model, timeout=timeout)
+    if four:
+        return [a if a in ("left", "right") else None
+                for a in ((answer or {}).get("bottom_left"), (answer or {}).get("bottom_right"))]
+    found = (answer or {}).get("front_faces")
+    return found if found in ("left", "right") else None
+
+
+def _ask_about(sheet: Path, question: str, *, model: str, timeout: float) -> dict | None:
+    """A vision model's JSON answer to a question about a sheet, or None."""
     import io
 
     from PIL import Image
@@ -303,7 +499,7 @@ def side_facing(sheet: Path, *, model: str, timeout: float = 60.0) -> str | None
         "model": model,
         "response_format": {"type": "json_object"},
         "messages": [{"role": "user", "content": [
-            {"type": "text", "text": FACING_QUESTION},
+            {"type": "text", "text": question},
             {"type": "image_url", "image_url": {
                 "url": "data:image/jpeg;base64," + base64.b64encode(buffer.getvalue()).decode(),
                 "detail": "low"}},
@@ -318,11 +514,11 @@ def side_facing(sheet: Path, *, model: str, timeout: float = 60.0) -> str | None
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             payload = json.loads(response.read().decode("utf-8"))
-        answer = json.loads(payload["choices"][0]["message"]["content"]).get("front_faces")
+        answer = json.loads(payload["choices"][0]["message"]["content"])
     except Exception as exc:  # no answer is an answer: leave the side out
         log.info("could not tell which way the side view faces: %s", exc)
         return None
-    return answer if answer in ("left", "right") else None
+    return answer if isinstance(answer, dict) else None
 
 
 # -- 2. a shape --------------------------------------------------------------
@@ -337,7 +533,7 @@ class Local:
     weights: Path
     model: str = "tencent/Hunyuan3D-2mv"
     subfolder: str = "hunyuan3d-dit-v2-mv-turbo"
-    steps: int = 5
+    steps: int = 20
 
     @property
     def ready(self) -> bool:
@@ -347,40 +543,59 @@ class Local:
                 and (self.weights / self.model / self.subfolder / "model.fp16.safetensors").is_file())
 
 
-def shape(picture: Path, out: Path, *, views: str = "front", side: str | None = None,
+def shape(picture: Path, out: Path, *, views: str = "front", side: str | list | None = None,
           backend: str = "auto", local: Local | None = None, space: str = "", mv_space: str = "",
-          token: str = "", timeout: float = 600.0) -> Path:
+          token: str = "", timeout: float = 600.0, candidates: int = 1,
+          tencent_region: str = "ap-singapore", tencent_model: str = "3.1", faces: int = 150000) -> Path:
     """Picture -> untextured GLB at `out`. A turnaround sheet is split into
     its views first; a side view is named for the way it faces (`side`, from
     side_facing) and left out when that is not known. `backend` is auto
-    (this PC when the local generator is set up, else the Space), local, or
-    space."""
+    (this PC when the local generator is set up, else the Space), local,
+    space, or tencent (Hunyuan 3D 3.x on Tencent Cloud, see tencent.py). With `candidates` above one, this PC's generator makes that many
+    from one load, the rest beside `out` (see candidates_of); the Space makes
+    one whatever is asked."""
     import tempfile
 
     with tempfile.TemporaryDirectory(prefix="arnold-views-") as work:
         if views in LAYOUTS:
             files = split_views(picture, Path(work), views)
-            view = files.pop("side", None)
-            if view is not None and side in ("left", "right"):
-                files[side] = view
+            # Each side view named for the way it faces; one whose facing is
+            # unknown, or that repeats a side already named, is left out.
+            facings = side if isinstance(side, (list, tuple)) else [side]
+            for key, facing in zip(("side", "side2"), [*facings, None]):
+                view = files.pop(key, None)
+                if view is not None and facing in ("left", "right") and facing not in files:
+                    files[facing] = view
+            files.pop("side2", None)
         else:
             files = {"front": picture}
+        if backend == "tencent":
+            from . import tencent
+
+            try:
+                return tencent.shape(files, out, region=tencent_region, model=tencent_model,
+                                     faces=faces, timeout=timeout)
+            except tencent.TencentError as exc:
+                raise SculptError(str(exc)) from None
         if where(backend, local) == "local":
             if local is None or not local.ready:
                 raise SculptError("The local 3D generator isn't set up - see models/hy3d in the README.")
-            return shape_local(files, out, local, timeout)
+            return shape_local(files, out, local, timeout, candidates)
         return shape_space(files, out, space=mv_space if len(files) > 1 else space,
                            token=token, timeout=timeout)
 
 
 def where(backend: str, local: Local | None) -> str:
-    """"local" or "space": which one `shape` will use."""
+    """"local", "space" or "tencent": which one `shape` will use."""
+    if backend == "tencent":
+        return "tencent"
     if backend == "local" or (backend == "auto" and local is not None and local.ready):
         return "local"
     return "space"
 
 
-def shape_local(views: dict[str, Path], out: Path, local: Local, timeout: float) -> Path:
+def shape_local(views: dict[str, Path], out: Path, local: Local, timeout: float,
+                candidates: int = 1) -> Path:
     """On this PC's GPU, through hy3d_worker.py in the generator's own
     environment. A fresh process each time, so the GPU is handed back the
     moment it is done - a game started afterwards gets all of it."""
@@ -388,7 +603,8 @@ def shape_local(views: dict[str, Path], out: Path, local: Local, timeout: float)
 
     argv = [str(local.python), str(Path(__file__).with_name("hy3d_worker.py")),
             "--repo", str(local.repo), "--weights", str(local.weights), "--out", str(out), "--model", local.model,
-            "--subfolder", local.subfolder, "--steps", str(local.steps)]
+            "--subfolder", local.subfolder, "--steps", str(local.steps),
+            "--candidates", str(max(1, candidates))]
     if "turbo" in local.subfolder:
         argv.append("--flashvdm")
     for name, path in views.items():
@@ -412,6 +628,13 @@ def shape_local(views: dict[str, Path], out: Path, local: Local, timeout: float)
         raise SculptError("The local 3D generator couldn't make that: " + _local_error(str(error if isinstance(error, str) else error[0])))
     log.info("shaped locally from %s in %s", ",".join(views), reply.get("seconds"))
     return out
+
+
+def candidates_of(out: Path) -> list[Path]:
+    """Every shape `shape` made for `out`: out itself, then <out>.1.glb..."""
+    extra = sorted(out.parent.glob(f"{out.stem}.*{out.suffix}"),
+                   key=lambda p: int(p.suffixes[-2].lstrip(".")) if p.suffixes[-2].lstrip(".").isdigit() else 0)
+    return [out] + [p for p in extra if p.suffixes[-2].lstrip(".").isdigit()]
 
 
 def _local_error(text: str) -> str:

@@ -25,7 +25,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-VERSION = 2  # bump when the rules change, so stored settings are worked out again
+VERSION = 3  # bump when the rules change, so stored settings are worked out again
 
 # Per filament: temperatures, cooling, the enclosure, and density for the
 # weight. Temperatures are the middle of each maker's usual range.
@@ -211,7 +211,7 @@ def _side(nx: float, ny: float, nz: float) -> str:
 
 
 def recommend(shape: Shape, *, kind: str, material: str = "PLA",
-              watertight: bool | None = None) -> dict[str, Any]:
+              watertight: bool | None = None, unsupported: bool = False) -> dict[str, Any]:
     """{"summary", "notes", "settings": [{group, name, value, why}], ...}."""
     material = material.upper() if material.upper() in MATERIALS else "PLA"
     mat = MATERIALS[material]
@@ -285,7 +285,11 @@ def recommend(shape: Shape, *, kind: str, material: str = "PLA",
     add("Strength", "Sparse infill", f"{infill}% gyroid", why + "; gyroid is strong in every direction")
 
     # -- supports ------------------------------------------------------------
-    if shape.overhang < 20 or (over_share < 0.01 and shape.steep < 5):
+    if unsupported and over_share < 0.05:
+        add("Supports", "Enable support", "Off",
+            "the parts library lays this out to print without supports - what faces down is "
+            "short bridges, like the top of the belt loop and the hinge-pin holes")
+    elif shape.overhang < 20 or (over_share < 0.01 and shape.steep < 5):
         add("Supports", "Enable support", "Off",
             "nothing overhangs past 45° to speak of" + (" once it is laid on that face" if turned else ""))
     elif sculpted or over_share > 0.08:
@@ -349,5 +353,8 @@ def settings_value(settings: list[dict[str, str]], name: str) -> str:
     return next((s["value"] for s in settings if s["name"] == name), "")
 
 
-def for_part(stl: Path, *, kind: str, material: str = "PLA", watertight: bool | None = None) -> dict[str, Any]:
-    return recommend(measure(stl, faces=kind == "make"), kind=kind, material=material, watertight=watertight)
+def for_part(stl: Path, *, kind: str, material: str = "PLA", watertight: bool | None = None,
+             unsupported: bool = False) -> dict[str, Any]:
+    """`unsupported`: laid out by the parts library to print without supports."""
+    return recommend(measure(stl, faces=kind == "make"), kind=kind, material=material, watertight=watertight,
+                     unsupported=unsupported)

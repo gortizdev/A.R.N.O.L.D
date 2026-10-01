@@ -40,7 +40,10 @@ INSTRUCTIONS = (
     "- questions: up to {n} short questions about whatever is still open that "
     "would change the shape most - style, pose, expression, key features, "
     "accessories, a base or stand, size. Never ask about colour, paint or "
-    "material, and never ask again what has been answered. Each question has two "
+    "material, and never ask again what has been answered. If it is a working "
+    "object - a box, pouch, case, holder, anything that opens, holds or fits - ask "
+    "instead about what it must hold, its size, how it opens and closes, and how it "
+    "attaches, and put those sizes and mechanisms in the description. Each question has two "
     "to four options of a few words each, the likeliest first. If the description "
     "is already specific enough to sculpt, return no questions."
 )

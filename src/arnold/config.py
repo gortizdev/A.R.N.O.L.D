@@ -948,10 +948,25 @@ class PrinterConfig:
     # OpenSCAD.
     adjust_image_model: str = "gpt-image-1.5"
     adjust_code_model: str = "gpt-5.4-mini"
+    # Designs a working part's OpenSCAD from scratch (printer.design, and a
+    # sculpture asked for a hinge, a cavity or a fit). A reasoning model:
+    # clearances and hinges are not a quick edit. Falls back to
+    # adjust_code_model if this key cannot use it.
+    design_model: str = "gpt-5.4"
+    # Looking at every part before it reaches the slicer (check.py): its
+    # geometry measured, then renders reviewed by a vision model. A design
+    # that fails is sent back to be fixed up to check_rounds times; anything
+    # else carries the findings as a warning.
+    check_enabled: bool = True
+    check_review: bool = True
+    check_model: str = "gpt-5.4"
+    check_rounds: int = 2
     sculpt_space: str = "tencent/Hunyuan3D-2"
     # The views drawn for each sculpture: "front-side-back" is a turnaround
-    # sheet of three, so the back is seen and the depth is too; "front-back"
-    # leaves out the side; "front" is one view.
+    # sheet of three, so the back is seen and the depth is too;
+    # "front-back-sides" is four in a 2x2 grid, both sides as well, for things
+    # that differ left to right and long things whose profile needs room;
+    # "front-back" leaves out the side; "front" is one view.
     sculpt_views: str = "front-side-back"
     # Asked which way a sheet's side view faces, so the shape model is told
     # left or right correctly. A vision model; this costs a fraction of a cent.
@@ -961,7 +976,7 @@ class PrinterConfig:
     sculpt_ask_model: str = "gpt-5.4-mini"
     # Where the shape is made: "auto" is this PC's GPU when the local
     # generator is set up (models/hy3d) and the Space otherwise; or "local",
-    # or "space".
+    # "space", or "tencent" (Hunyuan 3D 3.x on Tencent Cloud, see tencent.py).
     sculpt_backend: str = "auto"
     # The Space for several views at once.
     sculpt_mv_space: str = "tencent/Hunyuan3D-2mv"
@@ -970,9 +985,23 @@ class PrinterConfig:
     sculpt_local_python: str = ""
     sculpt_local_repo: str = ""
     sculpt_local_model: str = "tencent/Hunyuan3D-2mv"
-    # The turbo model needs 5 steps rather than 30-50, for much the same shape.
+    # The turbo model needs far fewer steps than the full one's 30-50. At 5 the
+    # shape is right but its surfaces come out crumpled - a car's wings and nose
+    # especially; 20 is clean, for about fifteen seconds more on a 5060 Ti.
     sculpt_local_subfolder: str = "hunyuan3d-dit-v2-mv-turbo"
-    sculpt_local_steps: int = 5
+    sculpt_local_steps: int = 20
+    # How many shapes this PC's generator makes for each sculpture, from one
+    # load (about 20 seconds each), the one most like the picture kept - judged
+    # by sculpt_check_model from renders. 1 turns the choosing off.
+    sculpt_candidates: int = 3
+    # Tencent Hunyuan 3D (international): the 3.x shape model, cloud only,
+    # billed in Tencent credits. sculpt_backend "tencent" uses it alone;
+    # sculpt_tencent_extra adds one of its shapes to this PC's candidates and
+    # lets the choosing pick. Keys: the TENCENTCLOUD_SECRET_ID and
+    # TENCENTCLOUD_SECRET_KEY environment variables, never this file.
+    sculpt_tencent_extra: bool = False
+    sculpt_tencent_region: str = "ap-singapore"
+    sculpt_tencent_model: str = "3.1"
     # Blank = HF_TOKEN, then the `hf auth login` token. Signed in, the Space's
     # free GPU allowance is larger than anonymous.
     sculpt_hf_token: str = ""
